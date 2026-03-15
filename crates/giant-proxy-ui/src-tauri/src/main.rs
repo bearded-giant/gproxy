@@ -420,16 +420,35 @@ fn main() {
                 ns_app.setActivationPolicy(NSApplicationActivationPolicy::Accessory);
             }
 
-            // enable launch-at-login by default on first run
+            // first-launch setup: config dirs, CA cert, launch-at-login
             {
                 use tauri_plugin_autostart::ManagerExt;
-                let marker = dirs::home_dir()
+                let config_dir = dirs::home_dir()
                     .expect("home dir")
-                    .join(".giant-proxy")
-                    .join(".ui-initialized");
+                    .join(".giant-proxy");
+                let marker = config_dir.join(".ui-initialized");
+
+                let _ = std::fs::create_dir_all(&config_dir);
+                let _ = std::fs::create_dir_all(config_dir.join("profiles"));
+                let _ = std::fs::create_dir_all(config_dir.join("logs"));
+
+                // generate CA cert if missing
+                let ca_cert = config_dir.join("ca").join("giant-proxy-ca.pem");
+                if !ca_cert.exists() {
+                    match giantd::certs::CertAuthority::generate(&config_dir) {
+                        Ok(ca) => {
+                            tracing::info!("generated CA cert");
+                            // install to trust store (prompts for password on macOS)
+                            if let Err(e) = ca.install_trust_store() {
+                                tracing::warn!("CA trust install failed (user can run `giant-proxy init`): {}", e);
+                            }
+                        }
+                        Err(e) => tracing::error!("failed to generate CA: {}", e),
+                    }
+                }
+
                 if !marker.exists() {
                     let _ = app.autolaunch().enable();
-                    let _ = std::fs::create_dir_all(marker.parent().unwrap());
                     let _ = std::fs::write(&marker, "");
                 }
             }

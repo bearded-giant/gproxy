@@ -61,7 +61,7 @@ impl DaemonClient {
     }
 
     pub fn find_giantd() -> PathBuf {
-        // next to our own binary (bundled app)
+        // tauri sidecar: next to our own binary (Contents/MacOS/ in .app bundle)
         if let Some(sibling) = std::env::current_exe()
             .ok()
             .and_then(|p| p.parent().map(|d| d.join("giantd")))
@@ -77,7 +77,14 @@ impl DaemonClient {
             }
         }
 
-        // fall back to PATH
+        // homebrew
+        for brew_dir in &["/opt/homebrew/bin/giantd", "/usr/local/bin/giantd"] {
+            let p = PathBuf::from(brew_dir);
+            if p.exists() {
+                return p;
+            }
+        }
+
         PathBuf::from("giantd")
     }
 
