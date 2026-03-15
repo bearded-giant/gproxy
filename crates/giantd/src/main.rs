@@ -53,7 +53,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // pac server on tcp
     let pac_state = state.clone();
-    let pac_task = tokio::spawn(async move {
+    let _pac_task = tokio::spawn(async move {
         let pac_router = axum::Router::new()
             .route(
                 "/proxy.pac",
@@ -88,12 +88,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         event_tx: event_bus.sender(),
     };
 
-    let proxy_task = tokio::spawn(async move {
+    let _proxy_task = tokio::spawn(async move {
         let ca = match giantd::certs::CertAuthority::load(&config_dir) {
             Ok(ca) => ca,
-            Err(e) => {
-                tracing::warn!("CA not loaded, proxy will not intercept HTTPS: {}", e);
-                return;
+            Err(_) => {
+                tracing::info!("CA not found, generating...");
+                match giantd::certs::CertAuthority::generate(&config_dir) {
+                    Ok(ca) => {
+                        tracing::info!("CA generated at {}", ca.cert_path.display());
+                        ca
+                    }
+                    Err(e) => {
+                        tracing::error!("failed to generate CA: {}", e);
+                        return;
+                    }
+                }
             }
         };
 
@@ -147,15 +156,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     tracing::info!("giantd started (pid {})", std::process::id());
 
-    // signal handling
+    // signal handling -- only shutdown on ctrl_c or api death
+    // proxy_task and pac_task are optional; their exit should not kill the daemon
     let shutdown_config_dir = config::config_dir();
     tokio::select! {
         _ = tokio::signal::ctrl_c() => {
             tracing::info!("received shutdown signal");
         }
-        _ = api_task => {}
-        _ = pac_task => {}
-        _ = proxy_task => {}
+        _ = api_task => {
+            tracing::warn!("api task ended unexpectedly");
+        }
     }
 
     // cleanup

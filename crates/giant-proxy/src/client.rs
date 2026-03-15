@@ -43,7 +43,18 @@ impl DaemonClient {
     }
 
     pub fn is_daemon_running(&self) -> bool {
-        self.socket_path.exists()
+        if !self.socket_path.exists() {
+            return false;
+        }
+        std::os::unix::net::UnixStream::connect(&self.socket_path).is_ok()
+    }
+
+    pub fn cleanup_stale(&self) {
+        if self.socket_path.exists() && !self.is_daemon_running() {
+            let _ = std::fs::remove_file(&self.socket_path);
+            let config_dir = self.socket_path.parent().unwrap();
+            giantd::pid::cleanup_pid(config_dir).ok();
+        }
     }
 
     async fn request(

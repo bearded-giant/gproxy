@@ -17,12 +17,16 @@ struct Cli {
 enum Commands {
     /// show proxy and daemon status
     Status,
-    /// start proxy with a profile
+    /// start the proxy daemon
+    Start,
+    /// stop the proxy daemon
+    Stop,
+    /// start proxy with a profile (starts daemon if needed)
     On {
         #[arg(long)]
         profile: Option<String>,
     },
-    /// stop proxy
+    /// stop proxying (daemon stays running)
     Off,
     /// print shell env vars for proxy
     Env,
@@ -36,7 +40,7 @@ enum Commands {
         #[command(subcommand)]
         action: RuleAction,
     },
-    /// manage the daemon process
+    /// manage the daemon process (alias: start/stop)
     Daemon {
         #[command(subcommand)]
         action: DaemonAction,
@@ -46,12 +50,14 @@ enum Commands {
         #[arg(long)]
         fix: bool,
     },
-    /// initialize config directory
+    /// initialize config directory and generate CA cert
     Init,
     /// remove giant-proxy completely
     Uninstall,
     /// print version
     Version,
+    /// check if proxy is healthy
+    Health,
 }
 
 #[derive(Subcommand)]
@@ -143,22 +149,19 @@ async fn main() {
 
     match cli.command {
         Commands::Status => cmd_status(&client).await,
+        Commands::Start => cmd_start(&client).await,
+        Commands::Stop => cmd_stop(&client).await,
         Commands::On { profile } => {
-            ensure_daemon(&client).await;
-            let name = profile.unwrap_or_else(|| "preprod".to_string());
-            match client.post(&format!("/use/{}", name), None).await {
-                Ok(resp) => println!("proxy on: {}", resp),
-                Err(e) => eprintln!("error: {}", e),
-            }
+            cmd_on(&client, profile).await;
         }
         Commands::Off => {
             if client.is_daemon_running() {
                 match client.post("/stop", None).await {
-                    Ok(resp) => println!("proxy off: {}", resp),
+                    Ok(_) => println!("proxy stopped"),
                     Err(e) => eprintln!("error: {}", e),
                 }
             } else {
-                println!("daemon not running");
+                println!("proxy not running");
             }
         }
         Commands::Env => cmd_env(&client).await,
@@ -169,17 +172,18 @@ async fn main() {
         Commands::Init => cmd_init(),
         Commands::Uninstall => cmd_uninstall(&client).await,
         Commands::Version => println!("giant-proxy {}", env!("CARGO_PKG_VERSION")),
+        Commands::Health => cmd_health(&client).await,
     }
 }
 
 // -- status --
 
 async fn cmd_status(client: &DaemonClient) {
+    let profiles = giantd::config::list_profiles().unwrap_or_default();
+
     if !client.is_daemon_running() {
-        println!("  daemon:   stopped");
-        println!("  proxy:    off");
+        println!("  proxy:    inactive");
         println!("  profile:  -");
-        let profiles = giantd::config::list_profiles().unwrap_or_default();
         println!("  profiles: {}", if profiles.is_empty() { "(none)".to_string() } else { profiles.join(", ") });
         return;
     }
@@ -190,17 +194,24 @@ async fn cmd_status(client: &DaemonClient) {
             let addr = resp.get("listen_addr").and_then(|v| v.as_str()).unwrap_or("-");
             let mode = resp.get("routing_mode").and_then(|v| v.as_str()).unwrap_or("-");
             let rules = resp.get("rules").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0);
-            let profiles = giantd::config::list_profiles().unwrap_or_default();
 
-            println!("  daemon:   running");
-            println!("  proxy:    {}", if running { "on" } else { "off" });
-            println!("  profile:  {}", profile);
-            println!("  rules:    {}", rules);
-            println!("  listen:   {}", addr);
-            println!("  routing:  {}", mode);
+            if running {
+                println!("  proxy:    active");
+                println!("  profile:  {}", profile);
+                println!("  rules:    {}", rules);
+                println!("  listen:   {}", addr);
+                println!("  routing:  {}", mode);
+            } else {
+                println!("  proxy:    idle (no profile loaded)");
+                println!("  profiles: {}", if profiles.is_empty() { "(none)".to_string() } else { profiles.join(", ") });
+            }
+        }
+        Err(_) => {
+            // socket exists but daemon not responding (shutting down or stale)
+            println!("  proxy:    inactive");
+            println!("  profile:  -");
             println!("  profiles: {}", if profiles.is_empty() { "(none)".to_string() } else { profiles.join(", ") });
         }
-        Err(e) => eprintln!("error: {}", e),
     }
 }
 
@@ -516,35 +527,8 @@ fn load_profile_raw(name: &str) -> Result<giantd::config::ProfileRaw, String> {
 
 async fn cmd_daemon(action: DaemonAction, client: &DaemonClient) {
     match action {
-        DaemonAction::Start => {
-            if client.is_daemon_running() {
-                println!("daemon already running");
-                return;
-            }
-            let giantd = which_giantd();
-            match std::process::Command::new(&giantd)
-                .stdout(std::process::Stdio::null())
-                .stderr(std::process::Stdio::null())
-                .spawn()
-            {
-                Ok(child) => println!("daemon started (pid {})", child.id()),
-                Err(e) => eprintln!("failed to start daemon: {}", e),
-            }
-        }
-        DaemonAction::Stop => {
-            if !client.is_daemon_running() {
-                println!("daemon not running");
-                return;
-            }
-            let _ = client.post("/stop", None).await;
-            let config_dir = dirs::home_dir().unwrap().join(".giant-proxy");
-            if let Ok(Some(pid)) = giantd::pid::read_pid(&config_dir) {
-                let _ = std::process::Command::new("kill")
-                    .arg(pid.to_string())
-                    .status();
-            }
-            println!("daemon stopped");
-        }
+        DaemonAction::Start => cmd_start(client).await,
+        DaemonAction::Stop => cmd_stop(client).await,
         DaemonAction::Install => {
             let os = std::env::consts::OS;
             match os {
@@ -658,15 +642,43 @@ fn cmd_doctor(client: &DaemonClient) {
 }
 
 fn cmd_init() {
-    println!("initializing giant-proxy...");
     let config_dir = dirs::home_dir()
         .expect("home directory must exist")
         .join(".giant-proxy");
     std::fs::create_dir_all(&config_dir).expect("failed to create config dir");
     std::fs::create_dir_all(config_dir.join("profiles")).expect("failed to create profiles dir");
     std::fs::create_dir_all(config_dir.join("logs")).expect("failed to create logs dir");
-    println!("config directory: {}", config_dir.display());
-    println!("run `giant-proxy on` to start the proxy");
+
+    let ca_cert = config_dir.join("ca").join("giant-proxy-ca.pem");
+    if !ca_cert.exists() {
+        print!("  generating CA cert...");
+        match giantd::certs::CertAuthority::generate(&config_dir) {
+            Ok(ca) => {
+                println!(" ok");
+                print!("  installing to trust store (may prompt for password)...");
+                match ca.install_trust_store() {
+                    Ok(()) => println!(" ok"),
+                    Err(e) => println!(" failed: {}", e),
+                }
+            }
+            Err(e) => println!(" failed: {}", e),
+        }
+    } else {
+        println!("  CA cert: already exists");
+        let ca = giantd::certs::CertAuthority::load(&config_dir).unwrap();
+        if !ca.is_installed() {
+            print!("  installing to trust store (may prompt for password)...");
+            match ca.install_trust_store() {
+                Ok(()) => println!(" ok"),
+                Err(e) => println!(" failed: {}", e),
+            }
+        } else {
+            println!("  CA trust: already installed");
+        }
+    }
+
+    println!("  config: {}", config_dir.display());
+    println!("ready. run `giant-proxy on` to start");
 }
 
 async fn cmd_uninstall(client: &DaemonClient) {
@@ -734,21 +746,145 @@ async fn cmd_uninstall(client: &DaemonClient) {
     println!("giant-proxy uninstalled");
 }
 
-async fn ensure_daemon(client: &DaemonClient) {
-    if client.is_daemon_running() && client.get("/health").await.is_ok() {
-        return;
-    }
-    eprintln!("daemon not running. start it with: giant-proxy daemon start");
-    std::process::exit(1);
-}
-
 fn which_giantd() -> String {
-    let exe_dir = std::env::current_exe()
+    // next to our binary
+    if let Some(sibling) = std::env::current_exe()
         .ok()
         .and_then(|p| p.parent().map(|d| d.join("giantd")))
-        .filter(|p| p.exists());
-    match exe_dir {
-        Some(p) => p.to_string_lossy().to_string(),
-        None => "giantd".to_string(),
+        .filter(|p| p.exists())
+    {
+        return sibling.to_string_lossy().to_string();
+    }
+    // cargo install location
+    if let Some(cargo) = dirs::home_dir().map(|h| h.join(".cargo/bin/giantd")) {
+        if cargo.exists() {
+            return cargo.to_string_lossy().to_string();
+        }
+    }
+    "giantd".to_string()
+}
+
+async fn ensure_daemon(client: &DaemonClient) {
+    client.cleanup_stale();
+    if client.is_daemon_running() {
+        return;
+    }
+    let giantd = which_giantd();
+    eprint!("starting daemon...");
+    match std::process::Command::new(&giantd)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+    {
+        Ok(_) => {
+            for _ in 0..20 {
+                tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+                if client.is_daemon_running() {
+                    eprintln!(" ok");
+                    return;
+                }
+            }
+            eprintln!(" failed (socket never appeared)");
+            std::process::exit(1);
+        }
+        Err(e) => {
+            eprintln!(" failed: {}", e);
+            std::process::exit(1);
+        }
+    }
+}
+
+async fn cmd_start(client: &DaemonClient) {
+    if client.is_daemon_running() {
+        println!("already running");
+        return;
+    }
+    ensure_daemon(client).await;
+}
+
+async fn cmd_stop(client: &DaemonClient) {
+    if !client.is_daemon_running() {
+        println!("not running");
+        return;
+    }
+    let _ = client.post("/stop", None).await;
+    let config_dir = dirs::home_dir().unwrap().join(".giant-proxy");
+    if let Ok(Some(pid)) = giantd::pid::read_pid(&config_dir) {
+        let _ = std::process::Command::new("kill")
+            .arg(pid.to_string())
+            .status();
+    }
+    println!("stopped");
+}
+
+async fn cmd_on(client: &DaemonClient, profile: Option<String>) {
+    ensure_daemon(client).await;
+    let name = match profile {
+        Some(n) => n,
+        None => {
+            match giantd::config::list_profiles() {
+                Ok(profiles) if !profiles.is_empty() => profiles[0].clone(),
+                _ => {
+                    eprintln!("no profiles found. create one with: giant-proxy profile create <name>");
+                    std::process::exit(1);
+                }
+            }
+        }
+    };
+    match client.post(&format!("/use/{}", name), None).await {
+        Ok(_) => {
+            let profile = giantd::config::load_profile(&name).ok();
+            let rules = profile.map(|p| p.rules.len()).unwrap_or(0);
+            println!("proxy on: {} ({} rules)", name, rules);
+        }
+        Err(e) => eprintln!("error: {}", e),
+    }
+}
+
+async fn cmd_health(client: &DaemonClient) {
+    let config_dir = dirs::home_dir().unwrap().join(".giant-proxy");
+    let ca_cert = config_dir.join("ca").join("giant-proxy-ca.pem");
+    let ca_key = config_dir.join("ca").join("giant-proxy-ca-key.pem");
+    let profiles = giantd::config::list_profiles().unwrap_or_default();
+
+    let daemon_ok = client.is_daemon_running();
+    let ca_ok = ca_cert.exists() && ca_key.exists();
+    let ca_trusted = if ca_ok {
+        giantd::certs::CertAuthority::load(&config_dir)
+            .map(|ca| ca.is_installed())
+            .unwrap_or(false)
+    } else {
+        false
+    };
+    let profiles_ok = !profiles.is_empty();
+
+    let check = |ok: bool| if ok { "ok" } else { "MISSING" };
+
+    println!("  daemon:     {}", if daemon_ok { "running" } else { "stopped" });
+    println!("  CA cert:    {}", check(ca_ok));
+    println!("  CA trusted: {}", if ca_trusted { "yes" } else { "no -- run: giant-proxy init" });
+    println!("  profiles:   {}", if profiles_ok { format!("{} found", profiles.len()) } else { "none".to_string() });
+
+    if daemon_ok {
+        match client.get("/status").await {
+            Ok(resp) => {
+                let running = resp.get("running").and_then(|v| v.as_bool()).unwrap_or(false);
+                let profile = resp.get("profile").and_then(|v| v.as_str()).unwrap_or("-");
+                println!("  proxy:      {}", if running { format!("active ({})", profile) } else { "idle".to_string() });
+            }
+            Err(_) => println!("  proxy:      error reaching daemon"),
+        }
+    }
+
+    if !ca_ok || !ca_trusted || !profiles_ok {
+        println!();
+        if !ca_ok {
+            println!("  fix: giant-proxy init");
+        } else if !ca_trusted {
+            println!("  fix: giant-proxy init");
+        }
+        if !profiles_ok {
+            println!("  fix: giant-proxy profile create <name>");
+        }
     }
 }

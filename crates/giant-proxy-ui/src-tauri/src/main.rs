@@ -257,28 +257,8 @@ async fn start_daemon() -> Result<serde_json::Value, String> {
     if client.is_daemon_running() {
         return Ok(serde_json::json!({"ok": true, "already_running": true}));
     }
-
-    // find giantd next to our own binary, or in PATH
-    let giantd_path = std::env::current_exe()
-        .ok()
-        .and_then(|p| p.parent().map(|d| d.join("giantd")))
-        .filter(|p| p.exists())
-        .unwrap_or_else(|| std::path::PathBuf::from("giantd"));
-
-    std::process::Command::new(&giantd_path)
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .spawn()
-        .map_err(|e| format!("failed to start daemon: {}", e))?;
-
-    // wait for socket to become available
-    for _ in 0..20 {
-        std::thread::sleep(std::time::Duration::from_millis(250));
-        if client.is_daemon_running() {
-            return Ok(serde_json::json!({"ok": true}));
-        }
-    }
-    Err("daemon started but not responding".to_string())
+    client.ensure_daemon_started().await?;
+    Ok(serde_json::json!({"ok": true}))
 }
 
 #[tauri::command]

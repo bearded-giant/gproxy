@@ -48,7 +48,61 @@ impl DaemonClient {
     }
 
     pub fn is_daemon_running(&self) -> bool {
-        self.socket_path.exists()
+        if !self.socket_path.exists() {
+            return false;
+        }
+        std::os::unix::net::UnixStream::connect(&self.socket_path).is_ok()
+    }
+
+    pub fn cleanup_stale(&self) {
+        if self.socket_path.exists() && !self.is_daemon_running() {
+            let _ = std::fs::remove_file(&self.socket_path);
+        }
+    }
+
+    pub fn find_giantd() -> PathBuf {
+        // next to our own binary (bundled app)
+        if let Some(sibling) = std::env::current_exe()
+            .ok()
+            .and_then(|p| p.parent().map(|d| d.join("giantd")))
+            .filter(|p| p.exists())
+        {
+            return sibling;
+        }
+
+        // cargo install location
+        if let Some(cargo) = dirs::home_dir().map(|h| h.join(".cargo/bin/giantd")) {
+            if cargo.exists() {
+                return cargo;
+            }
+        }
+
+        // fall back to PATH
+        PathBuf::from("giantd")
+    }
+
+    pub async fn ensure_daemon_started(&self) -> Result<(), String> {
+        self.cleanup_stale();
+        if self.is_daemon_running() {
+            return Ok(());
+        }
+
+        let giantd_path = Self::find_giantd();
+        tracing::info!("starting daemon from: {:?}", giantd_path);
+
+        std::process::Command::new(&giantd_path)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .map_err(|e| format!("failed to start daemon (path: {:?}): {}", giantd_path, e))?;
+
+        for _ in 0..20 {
+            tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+            if self.is_daemon_running() {
+                return Ok(());
+            }
+        }
+        Err("daemon spawned but socket never appeared".to_string())
     }
 
     pub async fn connect_events(

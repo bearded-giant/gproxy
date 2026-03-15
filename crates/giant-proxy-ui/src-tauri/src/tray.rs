@@ -6,7 +6,7 @@ use tauri::{
 };
 
 pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
-    let status_item = MenuItemBuilder::with_id("status", "Giant Proxy (stopped)")
+    let status_item = MenuItemBuilder::with_id("status", "Giant Proxy not running")
         .enabled(false)
         .build(app)?;
 
@@ -60,6 +60,10 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                 "start" => {
                     tauri::async_runtime::spawn(async move {
                         let client = DaemonClient::new();
+                        if let Err(e) = client.ensure_daemon_started().await {
+                            tracing::error!("tray start: {}", e);
+                            return;
+                        }
                         let _ = client.post("/start", None).await;
                     });
                 }
@@ -93,6 +97,10 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                         let profile = profile.to_string();
                         tauri::async_runtime::spawn(async move {
                             let client = DaemonClient::new();
+                            if let Err(e) = client.ensure_daemon_started().await {
+                                tracing::error!("tray profile switch: {}", e);
+                                return;
+                            }
                             let _ = client.post(&format!("/use/{}", profile), None).await;
                         });
                     }

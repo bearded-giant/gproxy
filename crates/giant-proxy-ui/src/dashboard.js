@@ -43,15 +43,15 @@ async function refreshStatus() {
 
     if (proxyActive) {
       dot.className = "dot active";
-      text.textContent = "Proxy Active";
+      text.textContent = "Giant Proxy running";
       profileEl.textContent = activeProfile || "";
       btn.textContent = "Stop";
       btn.style.display = "";
     } else {
       dot.className = "dot idle";
-      text.textContent = "Daemon Running";
+      text.textContent = "Giant Proxy running";
       profileEl.textContent = "No profile loaded";
-      btn.textContent = "Start";
+      btn.textContent = "Stop";
       btn.style.display = "";
     }
   } catch (_) {
@@ -59,7 +59,7 @@ async function refreshStatus() {
     proxyActive = false;
     activeProfile = null;
     dot.className = "dot offline";
-    text.textContent = "Daemon Stopped";
+    text.textContent = "Giant Proxy not running";
     profileEl.textContent = "";
     btn.style.display = "none";
   }
@@ -473,8 +473,11 @@ async function handleStartStop() {
   try {
     if (proxyActive) {
       await invoke("stop_daemon");
-    } else {
+    } else if (!daemonRunning) {
       await invoke("start_daemon");
+    } else {
+      // daemon running but proxy not active -- start proxy
+      await invoke("start_proxy");
     }
     await refreshStatus();
     await loadProfilesTab();
