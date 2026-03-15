@@ -242,6 +242,32 @@ giant-proxy daemon install
 
 This installs a launchd agent on macOS or a systemd user unit on Linux. Remove it with `giant-proxy daemon uninstall`.
 
+## Local Install (from source)
+
+```
+cargo install --path crates/giantd
+cargo install --path crates/giant-proxy
+giant-proxy init
+```
+
+This puts `giantd` and `giant-proxy` into `~/.cargo/bin/`. Then start it up:
+
+```
+giant-proxy daemon start
+giant-proxy on --profile preprod
+eval $(giant-proxy env)
+```
+
+To install the menubar app from source:
+
+```
+cd crates/giant-proxy-ui
+pnpm install
+pnpm tauri build
+```
+
+The `.app` bundle lands in `crates/giant-proxy-ui/src-tauri/target/release/bundle/macos/`. Drag it to Applications or run it directly.
+
 ## Development
 
 ```
@@ -251,7 +277,7 @@ cargo clippy --workspace -- -D warnings
 cargo fmt --check
 ```
 
-The Tauri app needs Node.js and pnpm for the frontend build:
+Run the Tauri app in dev mode (hot-reload):
 
 ```
 cd crates/giant-proxy-ui
