@@ -25,6 +25,9 @@ enum Commands {
     On {
         #[arg(long)]
         profile: Option<String>,
+        /// enable only these rules (repeatable, others disabled)
+        #[arg(long)]
+        rule: Vec<String>,
     },
     /// stop proxying (daemon stays running)
     Off,
@@ -151,8 +154,8 @@ async fn main() {
         Commands::Status => cmd_status(&client).await,
         Commands::Start => cmd_start(&client).await,
         Commands::Stop => cmd_stop(&client).await,
-        Commands::On { profile } => {
-            cmd_on(&client, profile).await;
+        Commands::On { profile, rule } => {
+            cmd_on(&client, profile, rule).await;
         }
         Commands::Off => {
             if client.is_daemon_running() {
@@ -821,7 +824,7 @@ async fn cmd_stop(client: &DaemonClient) {
     println!("stopped");
 }
 
-async fn cmd_on(client: &DaemonClient, profile: Option<String>) {
+async fn cmd_on(client: &DaemonClient, profile: Option<String>, enabled_rules: Vec<String>) {
     ensure_daemon(client).await;
     let name = match profile {
         Some(n) => n,
@@ -835,11 +838,22 @@ async fn cmd_on(client: &DaemonClient, profile: Option<String>) {
             }
         }
     };
-    match client.post(&format!("/use/{}", name), None).await {
-        Ok(_) => {
-            let profile = giantd::config::load_profile(&name).ok();
-            let rules = profile.map(|p| p.rules.len()).unwrap_or(0);
-            println!("proxy on: {} ({} rules)", name, rules);
+
+    let body = if enabled_rules.is_empty() {
+        None
+    } else {
+        Some(serde_json::json!({"enabled_rules": enabled_rules}))
+    };
+
+    match client.post(&format!("/use/{}", name), body).await {
+        Ok(resp) => {
+            let loaded = resp.get("rules_loaded").and_then(|v| v.as_u64()).unwrap_or(0);
+            let enabled = resp.get("rules_enabled").and_then(|v| v.as_u64()).unwrap_or(loaded);
+            if !enabled_rules.is_empty() {
+                println!("proxy on: {} ({} enabled)", name, enabled);
+            } else {
+                println!("proxy on: {} ({} rules)", name, loaded);
+            }
         }
         Err(e) => eprintln!("error: {}", e),
     }

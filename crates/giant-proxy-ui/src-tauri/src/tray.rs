@@ -197,9 +197,9 @@ async fn get_tray_status() -> (String, bool) {
                 let text = if rule_names.is_empty() {
                     format!("{} (no active rules)", profile)
                 } else if rule_names.len() <= 2 {
-                    format!("{}: {}", profile, rule_names.join(", "))
+                    format!("{} > {}", profile, rule_names.join(", "))
                 } else {
-                    format!("{}: {} +{}", profile, rule_names[0], rule_names.len() - 1)
+                    format!("{} > {} +{}", profile, rule_names[0], rule_names.len() - 1)
                 };
                 (text, true)
             } else {

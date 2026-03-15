@@ -91,10 +91,29 @@ async fn list_profiles() -> impl IntoResponse {
 async fn switch_profile(
     State(state): State<AppState>,
     Path(profile_name): Path<String>,
+    body: Option<Json<serde_json::Value>>,
 ) -> impl IntoResponse {
     match config::load_profile(&profile_name) {
-        Ok(profile) => {
+        Ok(mut profile) => {
+            // if enabled_rules specified, only enable those
+            let filter_rules = body
+                .as_ref()
+                .and_then(|b| b.get("enabled_rules"))
+                .and_then(|v| v.as_array())
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                        .collect::<Vec<_>>()
+                });
+
+            if let Some(ref enabled) = filter_rules {
+                for rule in &mut profile.rules {
+                    rule.enabled = enabled.iter().any(|id| id == &rule.id);
+                }
+            }
+
             let rules_loaded = profile.rules.len();
+            let rules_enabled = profile.rules.iter().filter(|r| r.enabled).count();
             *state.rules.write().await = profile.rules;
             *state.active_profile.write().await = Some(profile_name.clone());
             *state.started_at.write().await = Some(chrono::Utc::now());
@@ -117,7 +136,7 @@ async fn switch_profile(
                 rules_loaded,
             });
 
-            Json(json!({ "ok": true, "rules_loaded": rules_loaded })).into_response()
+            Json(json!({ "ok": true, "rules_loaded": rules_loaded, "rules_enabled": rules_enabled })).into_response()
         }
         Err(e) => (
             StatusCode::BAD_REQUEST,
