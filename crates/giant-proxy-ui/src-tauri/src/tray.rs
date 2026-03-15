@@ -2,7 +2,7 @@ use crate::daemon::DaemonClient;
 use tauri::{
     menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Emitter, Manager,
+    Manager,
 };
 
 pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
@@ -13,13 +13,25 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let start_item = MenuItemBuilder::with_id("start", "Start Proxy").build(app)?;
     let stop_item = MenuItemBuilder::with_id("stop", "Stop Proxy").build(app)?;
 
-    let profile_submenu = SubmenuBuilder::with_id(app, "profiles", "Switch Profile")
-        .text("profile_preprod", "preprod")
-        .text("profile_stage", "stage")
-        .text("profile_prod", "prod")
-        .build()?;
+    // build profile submenu dynamically from disk
+    let mut profile_sub = SubmenuBuilder::with_id(app, "profiles", "Switch Profile");
+    match giantd::config::list_profiles() {
+        Ok(profiles) => {
+            if profiles.is_empty() {
+                profile_sub = profile_sub.text("no_profiles", "(no profiles)");
+            } else {
+                for name in profiles {
+                    let id = format!("profile_{}", name);
+                    profile_sub = profile_sub.text(id, &name);
+                }
+            }
+        }
+        Err(_) => {
+            profile_sub = profile_sub.text("no_profiles", "(no profiles)");
+        }
+    }
+    let profile_submenu = profile_sub.build()?;
 
-    let copy_env_item = MenuItemBuilder::with_id("copy_env", "Copy Proxy Env...").build(app)?;
     let dashboard_item = MenuItemBuilder::with_id("dashboard", "Open Dashboard...").build(app)?;
     let quit_item = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
 
@@ -31,7 +43,6 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         .separator()
         .item(&profile_submenu)
         .separator()
-        .item(&copy_env_item)
         .item(&dashboard_item)
         .separator()
         .item(&quit_item)
@@ -56,20 +67,6 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                     tauri::async_runtime::spawn(async move {
                         let client = DaemonClient::new();
                         let _ = client.post("/stop", None).await;
-                    });
-                }
-                "copy_env" => {
-                    let handle = app.clone();
-                    tauri::async_runtime::spawn(async move {
-                        let client = DaemonClient::new();
-                        if let Ok(resp) = client.get("/env").await {
-                            if let Some(snippet) =
-                                resp.get("shell_snippet").and_then(|s| s.as_str())
-                            {
-                                // emit to frontend for clipboard copy
-                                let _ = handle.emit("copy-to-clipboard", snippet);
-                            }
-                        }
                     });
                 }
                 "dashboard" => {

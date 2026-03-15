@@ -164,8 +164,74 @@ pub fn list_profiles() -> Result<Vec<String>> {
             }
         }
     }
+
+    // respect custom ordering from .order file
+    let order_path = dir.join(".order");
+    if order_path.exists() {
+        if let Ok(content) = std::fs::read_to_string(&order_path) {
+            let ordered: Vec<String> = content.lines()
+                .map(|l| l.trim().to_string())
+                .filter(|l| !l.is_empty())
+                .collect();
+            let mut sorted = Vec::new();
+            for name in &ordered {
+                if let Some(pos) = profiles.iter().position(|p| p == name) {
+                    sorted.push(profiles.remove(pos));
+                }
+            }
+            profiles.sort();
+            sorted.append(&mut profiles);
+            return Ok(sorted);
+        }
+    }
+
     profiles.sort();
     Ok(profiles)
+}
+
+pub fn rename_profile(old_name: &str, new_name: &str) -> Result<()> {
+    let dir = config_dir().join("profiles");
+    let old_path = dir.join(format!("{}.toml", old_name));
+    let new_path = dir.join(format!("{}.toml", new_name));
+
+    if !old_path.exists() {
+        return Err(GiantError::ConfigError(format!("profile '{}' not found", old_name)));
+    }
+    if new_path.exists() {
+        return Err(GiantError::ConfigError(format!("profile '{}' already exists", new_name)));
+    }
+
+    // update meta.name inside the file
+    let content = std::fs::read_to_string(&old_path)?;
+    let mut raw: ProfileRaw = toml::from_str(&content)
+        .map_err(|e| GiantError::ConfigError(format!("failed to parse profile: {}", e)))?;
+    raw.meta.name = new_name.to_string();
+    let new_content = toml::to_string_pretty(&raw)
+        .map_err(|e| GiantError::ConfigError(e.to_string()))?;
+    std::fs::write(&new_path, new_content)?;
+    std::fs::remove_file(&old_path)?;
+
+    // update .order file if it references the old name
+    let order_path = dir.join(".order");
+    if order_path.exists() {
+        if let Ok(content) = std::fs::read_to_string(&order_path) {
+            let updated: String = content.lines()
+                .map(|l| if l.trim() == old_name { new_name } else { l })
+                .collect::<Vec<_>>()
+                .join("\n");
+            let _ = std::fs::write(&order_path, updated + "\n");
+        }
+    }
+
+    Ok(())
+}
+
+pub fn save_profile_order(names: &[String]) -> Result<()> {
+    let dir = config_dir().join("profiles");
+    std::fs::create_dir_all(&dir)?;
+    let content = names.join("\n") + "\n";
+    std::fs::write(dir.join(".order"), content)?;
+    Ok(())
 }
 
 pub fn write_profile(profile: &ProfileRaw) -> Result<()> {

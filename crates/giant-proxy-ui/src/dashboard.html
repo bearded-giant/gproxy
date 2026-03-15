@@ -8,41 +8,26 @@
 </head>
 <body>
   <div id="dashboard">
+    <div id="status-bar">
+      <div id="status-indicator">
+        <span id="status-dot"></span>
+        <span id="status-text">Connecting...</span>
+      </div>
+      <div id="status-profile"></div>
+      <div id="status-actions">
+        <button id="btn-start-stop" class="status-btn" style="display:none">Start</button>
+      </div>
+    </div>
     <nav id="tab-bar">
-      <button class="tab active" data-tab="rules">Rules</button>
-      <button class="tab" data-tab="profiles">Profiles</button>
+      <button class="tab active" data-tab="profiles">Profiles</button>
       <button class="tab" data-tab="logs">Logs</button>
       <button class="tab" data-tab="settings">Settings</button>
     </nav>
 
-    <!-- Rules Tab -->
-    <div id="tab-rules" class="tab-panel active">
+    <!-- Profiles + Rules Tab -->
+    <div id="tab-profiles" class="tab-panel active">
       <div class="toolbar">
-        <input type="text" id="rule-search" class="search-input" placeholder="Filter rules...">
-        <button id="btn-new-rule" class="action-btn primary">+ New Rule</button>
-      </div>
-      <div class="table-container">
-        <table id="rules-table">
-          <thead>
-            <tr>
-              <th class="col-check"></th>
-              <th>Name</th>
-              <th>Match Pattern</th>
-              <th>Target</th>
-              <th class="col-actions">Actions</th>
-            </tr>
-          </thead>
-          <tbody id="rules-tbody"></tbody>
-        </table>
-        <div id="rules-empty" class="empty-state">No rules loaded</div>
-      </div>
-    </div>
-
-    <!-- Profiles Tab -->
-    <div id="tab-profiles" class="tab-panel">
-      <div class="toolbar">
-        <button id="btn-import" class="action-btn">Import</button>
-        <button id="btn-export" class="action-btn">Export</button>
+        <button id="btn-import-proxyman" class="action-btn">Import Proxyman</button>
         <button id="btn-new-profile" class="action-btn primary">+ New Profile</button>
       </div>
       <div id="profiles-list" class="profiles-container">
@@ -104,8 +89,13 @@
           </select>
         </div>
         <div class="form-group">
+          <label for="setting-launch-at-login">
+            <input type="checkbox" id="setting-launch-at-login"> Launch at Login
+          </label>
+        </div>
+        <div class="form-group">
           <label for="setting-auto-start">
-            <input type="checkbox" id="setting-auto-start"> Auto Start
+            <input type="checkbox" id="setting-auto-start"> Auto Start Proxy
           </label>
         </div>
         <div class="form-group">
@@ -117,6 +107,11 @@
           <textarea id="setting-bypass-hosts" rows="3" placeholder="one host per line"></textarea>
         </div>
         <button id="btn-save-settings" class="action-btn primary">Save Settings</button>
+
+        <div class="settings-divider"></div>
+        <h4 class="settings-section-title">Import</h4>
+        <p class="settings-hint">Import all Map Remote rules directly from a local Proxyman install.</p>
+        <button id="btn-proxyman-auto" class="action-btn">Import from Proxyman</button>
       </div>
     </div>
   </div>
@@ -129,6 +124,7 @@
         <button id="btn-modal-close" class="modal-close">&times;</button>
       </div>
       <div class="modal-body">
+        <input type="hidden" id="rule-profile">
         <div class="form-group">
           <label for="rule-id">Rule ID</label>
           <input type="text" id="rule-id" placeholder="my_rule">

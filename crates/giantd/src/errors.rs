@@ -38,8 +38,8 @@ impl From<std::io::Error> for GiantError {
     }
 }
 
-impl From<regex::Error> for GiantError {
-    fn from(err: regex::Error) -> Self {
+impl From<fancy_regex::Error> for GiantError {
+    fn from(err: fancy_regex::Error) -> Self {
         GiantError::RuleError(err.to_string())
     }
 }

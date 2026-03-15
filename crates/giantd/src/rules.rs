@@ -1,5 +1,5 @@
+use fancy_regex::Regex;
 use glob_match::glob_match;
-use regex::Regex;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -52,7 +52,7 @@ fn default_http() -> String {
 }
 
 impl Rule {
-    pub fn from_raw(raw: RuleRaw) -> std::result::Result<Self, regex::Error> {
+    pub fn from_raw(raw: RuleRaw) -> std::result::Result<Self, fancy_regex::Error> {
         let compiled_regex = match &raw.match_rule.regex {
             Some(re_str) => Some(Regex::new(re_str)?),
             None => None,
@@ -82,7 +82,7 @@ impl Rule {
 
         if let Some(ref re) = self.compiled_regex {
             let full_url = uri.to_string();
-            return re.is_match(&full_url);
+            return re.is_match(&full_url).unwrap_or(false);
         }
 
         // check both Host header (HTTP/1.1) and URI authority (HTTP/2 :authority)

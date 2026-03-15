@@ -1,16 +1,60 @@
 const { invoke } = window.__TAURI__.core;
 const { listen } = window.__TAURI__.event;
 
-let currentRules = [];
 let logEntries = [];
 let logsPaused = false;
 let editingRuleId = null;
+let editingProfile = null;
+
+let daemonRunning = false;
+let proxyActive = false;
+let activeProfile = null;
 
 async function init() {
   setupTabs();
   setupEventListeners();
   startEventStream();
-  await loadRulesTab();
+  await refreshStatus();
+  await loadProfilesTab();
+  setInterval(refreshStatus, 3000);
+}
+
+// -- status bar --
+
+async function refreshStatus() {
+  const dot = document.getElementById("status-dot");
+  const text = document.getElementById("status-text");
+  const profileEl = document.getElementById("status-profile");
+  const btn = document.getElementById("btn-start-stop");
+
+  try {
+    const status = await invoke("get_status");
+    daemonRunning = true;
+    proxyActive = !!status.running;
+    activeProfile = status.profile || null;
+
+    if (proxyActive) {
+      dot.className = "dot active";
+      text.textContent = "Proxy Active";
+      profileEl.textContent = activeProfile || "";
+      btn.textContent = "Stop";
+      btn.style.display = "";
+    } else {
+      dot.className = "dot idle";
+      text.textContent = "Daemon Running";
+      profileEl.textContent = "No profile loaded";
+      btn.textContent = "Start";
+      btn.style.display = "";
+    }
+  } catch (_) {
+    daemonRunning = false;
+    proxyActive = false;
+    activeProfile = null;
+    dot.className = "dot offline";
+    text.textContent = "Daemon Stopped";
+    profileEl.textContent = "";
+    btn.style.display = "none";
+  }
 }
 
 function setupTabs() {
@@ -23,7 +67,6 @@ function setupTabs() {
       if (panel) panel.classList.add("active");
 
       switch (btn.dataset.tab) {
-        case "rules": loadRulesTab(); break;
         case "profiles": loadProfilesTab(); break;
         case "settings": loadSettingsTab(); break;
       }
@@ -31,94 +74,227 @@ function setupTabs() {
   });
 }
 
-async function loadRulesTab() {
+// -- profiles + rules --
+
+async function loadProfilesTab() {
+  let profiles = [];
   try {
-    const status = await invoke("get_status");
-    currentRules = status.rules || [];
-    renderRulesTable();
+    const resp = await invoke("list_profiles_local");
+    profiles = resp.profiles || [];
   } catch (e) {
-    console.error("load rules failed:", e);
+    console.error("list profiles failed:", e);
   }
-}
 
-function renderRulesTable() {
-  const tbody = document.getElementById("rules-tbody");
-  const empty = document.getElementById("rules-empty");
+  const container = document.getElementById("profiles-list");
 
-  if (!currentRules.length) {
-    tbody.innerHTML = "";
-    empty.style.display = "flex";
+  if (!profiles.length) {
+    container.innerHTML = '<div class="empty-state">No profiles found -- import from Proxyman or create one</div>';
     return;
   }
 
-  empty.style.display = "none";
-  const filter = (document.getElementById("rule-search").value || "").toLowerCase();
+  const totalProfiles = profiles.length;
+  container.innerHTML = profiles.map((p, idx) => {
+    const isActive = p.name === activeProfile;
+    const rules = p.rules || [];
 
-  tbody.innerHTML = currentRules
-    .filter(r => !filter || r.id.toLowerCase().includes(filter))
-    .map(rule => `
-      <tr data-id="${rule.id}">
-        <td class="col-check">
-          <input type="checkbox" ${rule.enabled ? "checked" : ""} data-rule-id="${rule.id}">
-        </td>
-        <td>${rule.id}</td>
-        <td class="mono">${rule.id}</td>
-        <td class="mono">target</td>
-        <td class="col-actions">
-          <button class="action-btn small" onclick="editRule('${rule.id}')">Edit</button>
-          <button class="action-btn small danger" onclick="deleteRule('${rule.id}')">Del</button>
-        </td>
-      </tr>
-    `).join("");
+    let actionBtn = "";
+    if (isActive && proxyActive) {
+      actionBtn = `<button class="action-btn small danger" data-action="stop-profile" data-profile="${p.name}">Stop</button>`;
+    } else if (daemonRunning) {
+      actionBtn = `<button class="action-btn small" data-action="activate-profile" data-profile="${p.name}">Activate</button>`;
+    } else {
+      actionBtn = `<button class="action-btn small primary" data-action="start-profile" data-profile="${p.name}">Start</button>`;
+    }
 
-  tbody.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-    cb.addEventListener("change", () => toggleRule(cb.dataset.ruleId));
+    let badge = "";
+    if (isActive && proxyActive) {
+      badge = '<span class="profile-badge active">Running</span>';
+    }
+
+    const moveBtns = `<span class="profile-move-btns">${
+      idx > 0 ? `<button class="icon-btn" data-action="move-profile-up" data-profile="${p.name}" title="Move up">&#9650;</button>` : ''
+    }${
+      idx < totalProfiles - 1 ? `<button class="icon-btn" data-action="move-profile-down" data-profile="${p.name}" title="Move down">&#9660;</button>` : ''
+    }</span>`;
+
+    const rulesHtml = rules.length
+      ? `<table class="profile-rules-table">
+          <thead><tr>
+            <th class="col-toggle"></th>
+            <th>Rule</th>
+            <th>Match</th>
+            <th>Target</th>
+            <th class="col-rule-actions"></th>
+          </tr></thead>
+          <tbody>${rules.map(r => `
+            <tr class="${r.enabled ? '' : 'rule-disabled'}">
+              <td class="col-toggle">
+                <input type="checkbox" ${r.enabled ? "checked" : ""} data-action="toggle-rule" data-profile="${p.name}" data-rule="${r.id}">
+              </td>
+              <td>${r.id}</td>
+              <td class="mono" title="${escapeHtml(r.match_display)}">${truncate(r.match_display, 50)}</td>
+              <td class="mono">${r.target}</td>
+              <td class="col-rule-actions">
+                <button class="icon-btn" title="Edit" data-action="edit-rule" data-profile="${p.name}" data-rule="${r.id}">&#9998;</button>
+                <button class="icon-btn danger" title="Delete" data-action="delete-rule" data-profile="${p.name}" data-rule="${r.id}">&#10005;</button>
+              </td>
+            </tr>`).join("")}
+          </tbody>
+        </table>`
+      : '<div class="profile-no-rules">No rules</div>';
+
+    return `
+      <div class="profile-card ${isActive ? 'active' : ''}">
+        <div class="profile-header">
+          ${moveBtns}
+          <div class="profile-name" data-action="rename-profile" data-profile="${p.name}" title="Click to rename">${p.name}</div>
+          ${badge}
+          <span class="profile-rule-count">${rules.length} rule${rules.length !== 1 ? 's' : ''}</span>
+          ${actionBtn}
+          <button class="icon-btn add-rule-btn" data-action="add-rule" data-profile="${p.name}" title="Add rule">+</button>
+        </div>
+        ${rulesHtml}
+      </div>
+    `;
+  }).join("");
+}
+
+// -- event delegation for all profile/rule actions --
+
+function setupProfileActions() {
+  document.getElementById("profiles-list").addEventListener("click", async (e) => {
+    const btn = e.target.closest("[data-action]");
+    if (!btn) return;
+
+    const action = btn.dataset.action;
+    const profile = btn.dataset.profile;
+    const rule = btn.dataset.rule;
+
+    switch (action) {
+      case "start-profile":
+        await startAndActivate(profile);
+        break;
+      case "activate-profile":
+        await activateProfile(profile);
+        break;
+      case "stop-profile":
+        await stopDaemon();
+        break;
+      case "add-rule":
+        openNewRuleModal(profile);
+        break;
+      case "edit-rule":
+        await openEditRuleModal(profile, rule);
+        break;
+      case "delete-rule":
+        await deleteRule(profile, rule);
+        break;
+      case "toggle-rule":
+        await toggleRule(profile, rule);
+        break;
+      case "rename-profile":
+        await renameProfilePrompt(profile);
+        break;
+      case "move-profile-up":
+        await moveProfile(profile, -1);
+        break;
+      case "move-profile-down":
+        await moveProfile(profile, 1);
+        break;
+    }
   });
 }
 
-async function toggleRule(ruleId) {
+async function startAndActivate(profileName) {
   try {
-    await invoke("toggle_rule", { ruleId });
-    await loadRulesTab();
+    await invoke("start_daemon");
+    await invoke("switch_profile", { profile: profileName });
+    await refreshStatus();
+    await loadProfilesTab();
   } catch (e) {
-    console.error("toggle failed:", e);
+    alert("Failed to start: " + e);
   }
 }
 
-async function deleteRule(ruleId) {
-  if (!confirm("Delete rule " + ruleId + "?")) return;
+async function activateProfile(name) {
   try {
-    await invoke("delete_rule", { ruleId });
-    await loadRulesTab();
+    await invoke("switch_profile", { profile: name });
+    await refreshStatus();
+    await loadProfilesTab();
   } catch (e) {
-    console.error("delete failed:", e);
+    alert("Failed to activate: " + e);
   }
 }
 
-async function editRule(ruleId) {
-  editingRuleId = ruleId;
-  document.getElementById("modal-title").textContent = "Edit Rule";
+async function stopDaemon() {
   try {
-    const rule = await invoke("get_rule", { ruleId });
-    document.getElementById("rule-id").value = rule.id || "";
-    document.getElementById("rule-host-pattern").value = (rule.match_rule && rule.match_rule.host) || "";
-    document.getElementById("rule-path-pattern").value = (rule.match_rule && rule.match_rule.path) || "";
-    document.getElementById("rule-exclude-path").value = (rule.match_rule && rule.match_rule.not_path) || "";
-    document.getElementById("rule-method").value = (rule.match_rule && rule.match_rule.method) || "ANY";
-    document.getElementById("rule-target-host").value = (rule.target && rule.target.host) || "";
-    document.getElementById("rule-target-port").value = (rule.target && rule.target.port) || "";
-    document.getElementById("rule-target-scheme").value = (rule.target && rule.target.scheme) || "http";
-    document.getElementById("rule-preserve-host").checked = rule.preserve_host !== false;
-    document.getElementById("rule-regex").value = (rule.match_rule && rule.match_rule.regex) || "";
-    document.getElementById("rule-modal").style.display = "flex";
+    await invoke("stop_daemon");
+    await refreshStatus();
+    await loadProfilesTab();
   } catch (e) {
-    console.error("load rule failed:", e);
+    alert("Failed to stop: " + e);
   }
 }
 
-function openNewRuleModal() {
+async function toggleRule(profileName, ruleId) {
+  try {
+    await invoke("toggle_profile_rule", { profileName, ruleId });
+    await loadProfilesTab();
+  } catch (e) {
+    alert("Toggle failed: " + e);
+  }
+}
+
+async function deleteRule(profileName, ruleId) {
+  if (!confirm("Delete rule '" + ruleId + "' from " + profileName + "?")) return;
+  try {
+    await invoke("delete_profile_rule", { profileName, ruleId });
+    await loadProfilesTab();
+  } catch (e) {
+    alert("Delete failed: " + e);
+  }
+}
+
+// -- rename / reorder --
+
+async function renameProfilePrompt(oldName) {
+  const newName = prompt("Rename profile '" + oldName + "' to:", oldName);
+  if (!newName || newName === oldName) return;
+  const slug = newName.toLowerCase().replace(/[^a-z0-9_-]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+  if (!slug) { alert("Invalid name"); return; }
+  try {
+    await invoke("rename_profile", { oldName, newName: slug });
+    await loadProfilesTab();
+  } catch (e) {
+    alert("Rename failed: " + e);
+  }
+}
+
+async function moveProfile(name, direction) {
+  // get current order from the rendered cards
+  const cards = document.querySelectorAll(".profile-card .profile-name");
+  const names = Array.from(cards).map(el => el.dataset.profile);
+  const idx = names.indexOf(name);
+  if (idx < 0) return;
+  const newIdx = idx + direction;
+  if (newIdx < 0 || newIdx >= names.length) return;
+  // swap
+  [names[idx], names[newIdx]] = [names[newIdx], names[idx]];
+  try {
+    await invoke("reorder_profiles", { names });
+    await loadProfilesTab();
+  } catch (e) {
+    alert("Reorder failed: " + e);
+  }
+}
+
+// -- rule modal --
+
+function openNewRuleModal(profileName) {
   editingRuleId = null;
-  document.getElementById("modal-title").textContent = "New Rule";
+  editingProfile = profileName;
+  document.getElementById("modal-title").textContent = "New Rule in " + profileName;
+  document.getElementById("rule-profile").value = profileName;
   document.getElementById("rule-id").value = "";
   document.getElementById("rule-host-pattern").value = "";
   document.getElementById("rule-path-pattern").value = "";
@@ -132,20 +308,47 @@ function openNewRuleModal() {
   document.getElementById("rule-modal").style.display = "flex";
 }
 
+async function openEditRuleModal(profileName, ruleId) {
+  editingRuleId = ruleId;
+  editingProfile = profileName;
+  document.getElementById("modal-title").textContent = "Edit Rule in " + profileName;
+  document.getElementById("rule-profile").value = profileName;
+  try {
+    const rule = await invoke("get_profile_rule", { profileName, ruleId });
+    document.getElementById("rule-id").value = rule.id || "";
+    document.getElementById("rule-host-pattern").value = (rule.match_rule && rule.match_rule.host) || "";
+    document.getElementById("rule-path-pattern").value = (rule.match_rule && rule.match_rule.path) || "";
+    document.getElementById("rule-exclude-path").value = (rule.match_rule && rule.match_rule.not_path) || "";
+    document.getElementById("rule-method").value = (rule.match_rule && rule.match_rule.method) || "ANY";
+    document.getElementById("rule-target-host").value = (rule.target && rule.target.host) || "";
+    document.getElementById("rule-target-port").value = (rule.target && rule.target.port) || "";
+    document.getElementById("rule-target-scheme").value = (rule.target && rule.target.scheme) || "http";
+    document.getElementById("rule-preserve-host").checked = rule.preserve_host !== false;
+    document.getElementById("rule-regex").value = (rule.match_rule && rule.match_rule.regex) || "";
+    document.getElementById("rule-modal").style.display = "flex";
+  } catch (e) {
+    alert("Failed to load rule: " + e);
+  }
+}
+
 function closeModal() {
   document.getElementById("rule-modal").style.display = "none";
   editingRuleId = null;
+  editingProfile = null;
 }
 
 async function saveRule() {
-  const rule = {
+  const profileName = document.getElementById("rule-profile").value;
+  const method = document.getElementById("rule-method").value;
+
+  const rulePayload = {
     id: document.getElementById("rule-id").value,
     enabled: true,
-    match_rule: {
+    match: {
       host: document.getElementById("rule-host-pattern").value || null,
       path: document.getElementById("rule-path-pattern").value || null,
       not_path: document.getElementById("rule-exclude-path").value || null,
-      method: document.getElementById("rule-method").value || null,
+      method: method === "ANY" ? null : method,
       regex: document.getElementById("rule-regex").value || null,
     },
     target: {
@@ -157,66 +360,20 @@ async function saveRule() {
     priority: 0,
   };
 
-  const rulePayload = {
-    id: rule.id,
-    enabled: rule.enabled,
-    match: rule.match_rule,
-    target: rule.target,
-    preserve_host: rule.preserve_host,
-    priority: rule.priority,
-  };
-
   try {
-    if (editingRuleId) {
-      await invoke("update_rule", { ruleId: editingRuleId, rule: rulePayload });
-    } else {
-      await invoke("add_rule", { rule: rulePayload });
-    }
+    await invoke("save_profile_rule", {
+      profileName,
+      rule: rulePayload,
+      oldRuleId: editingRuleId || null,
+    });
     closeModal();
-    await loadRulesTab();
+    await loadProfilesTab();
   } catch (e) {
-    console.error("save rule failed:", e);
     alert("Failed to save rule: " + e);
   }
 }
 
-async function loadProfilesTab() {
-  try {
-    const resp = await invoke("get_profiles");
-    const profiles = resp.profiles || [];
-    const status = await invoke("get_status");
-    const activeProfile = status.profile;
-    const container = document.getElementById("profiles-list");
-
-    if (!profiles.length) {
-      container.innerHTML = '<div class="empty-state">No profiles found</div>';
-      return;
-    }
-
-    container.innerHTML = profiles.map(p => `
-      <div class="profile-card ${p === activeProfile ? 'active' : ''}" data-profile="${p}">
-        <div class="profile-name">${p}</div>
-        <div class="profile-meta">${p === activeProfile ? 'Active' : 'Click to activate'}</div>
-      </div>
-    `).join("");
-
-    container.querySelectorAll(".profile-card").forEach(card => {
-      card.addEventListener("click", () => switchProfile(card.dataset.profile));
-    });
-  } catch (e) {
-    console.error("load profiles failed:", e);
-  }
-}
-
-async function switchProfile(profile) {
-  try {
-    await invoke("switch_profile", { profile });
-    await loadProfilesTab();
-    await loadRulesTab();
-  } catch (e) {
-    console.error("switch profile failed:", e);
-  }
-}
+// -- logs --
 
 function renderLogs() {
   const tbody = document.getElementById("logs-tbody");
@@ -255,17 +412,29 @@ function clearLogs() {
   renderLogs();
 }
 
+// -- settings --
+
 async function loadSettingsTab() {
+  if (daemonRunning) {
+    try {
+      const status = await invoke("get_status");
+      const addr = status.listen_addr || "127.0.0.1:8080";
+      const port = addr.split(":").pop();
+      document.getElementById("setting-listen-port").value = port;
+      document.getElementById("setting-routing-mode").value = status.routing_mode || "manual";
+    } catch (e) {
+      console.error("load settings failed:", e);
+    }
+  }
   try {
-    const status = await invoke("get_status");
-    const addr = status.listen_addr || "127.0.0.1:8080";
-    const port = addr.split(":").pop();
-    document.getElementById("setting-listen-port").value = port;
-    document.getElementById("setting-routing-mode").value = status.routing_mode || "manual";
+    const enabled = await invoke("get_launch_at_login");
+    document.getElementById("setting-launch-at-login").checked = enabled;
   } catch (e) {
-    console.error("load settings failed:", e);
+    console.error("load launch-at-login failed:", e);
   }
 }
+
+// -- events --
 
 async function startEventStream() {
   await listen("proxy-event", (event) => {
@@ -288,21 +457,107 @@ async function startEventStream() {
       case "ProfileSwitched":
       case "ProxyStarted":
       case "ProxyStopped":
-        loadRulesTab();
+        refreshStatus();
+        loadProfilesTab();
         break;
     }
   });
 }
 
+// -- start/stop from status bar --
+
+async function handleStartStop() {
+  try {
+    if (proxyActive) {
+      await invoke("stop_daemon");
+    } else {
+      await invoke("start_daemon");
+    }
+    await refreshStatus();
+    await loadProfilesTab();
+  } catch (e) {
+    alert("Failed: " + e);
+  }
+}
+
+// -- import --
+
+async function importProxyman() {
+  try {
+    const result = await window.__TAURI__.dialog.open({
+      title: "Import Proxyman Map Remote Config",
+      filters: [
+        { name: "Proxyman Config", extensions: ["config", "json"] },
+        { name: "All Files", extensions: ["*"] },
+      ],
+      multiple: false,
+    });
+    if (!result) return;
+
+    const resp = await invoke("import_proxyman_file", { filePath: result });
+    const profiles = resp.profiles || [];
+    const names = profiles.map(p => `${p.name} (${p.rules} rules)`).join(", ");
+    alert("Imported: " + names);
+    await loadProfilesTab();
+  } catch (e) {
+    alert("Import failed: " + e);
+  }
+}
+
+// -- auto-import from proxyman --
+
+async function importProxymanAuto() {
+  try {
+    const resp = await invoke("import_proxyman_auto");
+    const profiles = resp.profiles || [];
+    const names = profiles.map(p => `${p.name} (${p.rules} rules)`).join(", ");
+    alert("Imported: " + names);
+    // switch to profiles tab to show results
+    document.querySelectorAll("#tab-bar .tab").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+    document.querySelector('[data-tab="profiles"]').classList.add("active");
+    document.getElementById("tab-profiles").classList.add("active");
+    await loadProfilesTab();
+  } catch (e) {
+    alert("Import failed: " + e);
+  }
+}
+
+// -- helpers --
+
+function escapeHtml(s) {
+  const d = document.createElement("div");
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function truncate(s, n) {
+  return s.length > n ? s.substring(0, n) + "..." : s;
+}
+
+// -- event listeners --
+
 function setupEventListeners() {
-  document.getElementById("btn-new-rule").addEventListener("click", openNewRuleModal);
+  setupProfileActions();
   document.getElementById("btn-modal-save").addEventListener("click", saveRule);
   document.getElementById("btn-modal-cancel").addEventListener("click", closeModal);
   document.getElementById("btn-modal-close").addEventListener("click", closeModal);
-  document.getElementById("rule-search").addEventListener("input", renderRulesTable);
   document.getElementById("log-filter").addEventListener("input", renderLogs);
   document.getElementById("btn-pause-logs").addEventListener("click", toggleLogsPause);
   document.getElementById("btn-clear-logs").addEventListener("click", clearLogs);
+  document.getElementById("btn-import-proxyman").addEventListener("click", importProxyman);
+  document.getElementById("btn-start-stop").addEventListener("click", handleStartStop);
+
+  document.getElementById("btn-proxyman-auto").addEventListener("click", importProxymanAuto);
+
+  document.getElementById("setting-launch-at-login").addEventListener("change", async (e) => {
+    try {
+      await invoke("set_launch_at_login", { enabled: e.target.checked });
+    } catch (err) {
+      console.error("set launch-at-login failed:", err);
+      e.target.checked = !e.target.checked;
+    }
+  });
 
   document.getElementById("rule-modal").addEventListener("click", (e) => {
     if (e.target.id === "rule-modal") closeModal();

@@ -29,6 +29,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 http = "1"
 regex = "1"
+fancy-regex = "0.14"
 glob-match = "0.2"
 dirs = "6"
 tokio-tungstenite = "0.26"
