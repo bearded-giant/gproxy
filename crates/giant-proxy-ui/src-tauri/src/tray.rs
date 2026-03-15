@@ -73,6 +73,16 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                     if let Some(window) = app.get_webview_window("dashboard") {
                         let _ = window.show();
                         let _ = window.set_focus();
+
+                        #[cfg(target_os = "macos")]
+                        {
+                            use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy};
+                            use objc2::MainThreadMarker;
+                            if let Some(mtm) = MainThreadMarker::new() {
+                                let ns_app = NSApplication::sharedApplication(mtm);
+                                ns_app.setActivationPolicy(NSApplicationActivationPolicy::Regular);
+                            }
+                        }
                     }
                 }
                 "quit" => {

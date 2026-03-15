@@ -367,6 +367,17 @@ async fn open_dashboard(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("dashboard") {
         window.show().map_err(|e| e.to_string())?;
         window.set_focus().map_err(|e| e.to_string())?;
+
+        #[cfg(target_os = "macos")]
+        {
+            let _ = app.run_on_main_thread(|| {
+                use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy};
+                use objc2::MainThreadMarker;
+                let mtm = MainThreadMarker::new().expect("run_on_main_thread");
+                let ns_app = NSApplication::sharedApplication(mtm);
+                ns_app.setActivationPolicy(NSApplicationActivationPolicy::Regular);
+            });
+        }
     }
     Ok(())
 }
@@ -401,6 +412,27 @@ fn main() {
                     let _ = std::fs::create_dir_all(marker.parent().unwrap());
                     let _ = std::fs::write(&marker, "");
                 }
+            }
+
+            // hide dashboard on close instead of destroying, toggle dock icon
+            if let Some(dashboard) = app.get_webview_window("dashboard") {
+                let dh = dashboard.clone();
+                dashboard.on_window_event(move |event| {
+                    if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                        api.prevent_close();
+                        let _ = dh.hide();
+
+                        #[cfg(target_os = "macos")]
+                        {
+                            use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy};
+                            use objc2::MainThreadMarker;
+                            if let Some(mtm) = MainThreadMarker::new() {
+                                let ns_app = NSApplication::sharedApplication(mtm);
+                                ns_app.setActivationPolicy(NSApplicationActivationPolicy::Accessory);
+                            }
+                        }
+                    }
+                });
             }
 
             tray::setup_tray(app)?;

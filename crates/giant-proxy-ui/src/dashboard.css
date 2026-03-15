@@ -288,22 +288,18 @@ tbody tr:hover {
   border-bottom-color: #6c7086;
 }
 
-.profile-move-btns {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  margin-right: 6px;
-}
-
-.profile-move-btns .icon-btn {
-  font-size: 10px;
-  padding: 0 3px;
-  line-height: 1;
+.drag-handle {
+  cursor: grab;
   color: #585b70;
+  font-size: 16px;
+  padding: 0 4px;
+  margin-right: 4px;
+  user-select: none;
+  transition: color 0.15s;
 }
 
-.profile-move-btns .icon-btn:hover {
-  color: #cdd6f4;
+.drag-handle:hover {
+  color: #a6adc8;
 }
 
 .profile-badge {

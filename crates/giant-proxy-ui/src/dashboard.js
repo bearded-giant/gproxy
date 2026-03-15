@@ -17,6 +17,14 @@ async function init() {
   await refreshStatus();
   await loadProfilesTab();
   setInterval(refreshStatus, 3000);
+
+  // refresh when window becomes visible again (reopened from tray)
+  document.addEventListener("visibilitychange", async () => {
+    if (!document.hidden) {
+      await refreshStatus();
+      await loadProfilesTab();
+    }
+  });
 }
 
 // -- status bar --
@@ -92,8 +100,7 @@ async function loadProfilesTab() {
     return;
   }
 
-  const totalProfiles = profiles.length;
-  container.innerHTML = profiles.map((p, idx) => {
+  container.innerHTML = profiles.map(p => {
     const isActive = p.name === activeProfile;
     const rules = p.rules || [];
 
@@ -111,11 +118,7 @@ async function loadProfilesTab() {
       badge = '<span class="profile-badge active">Running</span>';
     }
 
-    const moveBtns = `<span class="profile-move-btns">${
-      idx > 0 ? `<button class="icon-btn" data-action="move-profile-up" data-profile="${p.name}" title="Move up">&#9650;</button>` : ''
-    }${
-      idx < totalProfiles - 1 ? `<button class="icon-btn" data-action="move-profile-down" data-profile="${p.name}" title="Move down">&#9660;</button>` : ''
-    }</span>`;
+    const dragHandle = `<span class="drag-handle" data-action="move-profile-up" data-profile="${p.name}" title="Drag to reorder">&#9776;</span>`;
 
     const rulesHtml = rules.length
       ? `<table class="profile-rules-table">
@@ -146,7 +149,7 @@ async function loadProfilesTab() {
     return `
       <div class="profile-card ${isActive ? 'active' : ''}">
         <div class="profile-header">
-          ${moveBtns}
+          ${dragHandle}
           <div class="profile-name" data-action="rename-profile" data-profile="${p.name}" title="Click to rename">${p.name}</div>
           ${badge}
           <span class="profile-rule-count">${rules.length} rule${rules.length !== 1 ? 's' : ''}</span>
