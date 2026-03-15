@@ -118,18 +118,11 @@ jobs:
         with:
           projectPath: crates/giant-proxy-ui
           tauriScript: pnpm tauri
-
-      - name: upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: tauri-${{ matrix.os }}
-          path: |
-            crates/giant-proxy-ui/src-tauri/target/release/bundle/**/*.dmg
-            crates/giant-proxy-ui/src-tauri/target/release/bundle/**/*.AppImage
-            crates/giant-proxy-ui/src-tauri/target/release/bundle/**/*.deb
+          tagName: ${{ github.ref_name }}
+          releaseName: ${{ github.ref_name }}
 
   release:
-    needs: [build-cli, build-tauri]
+    needs: [build-cli]
     runs-on: ubuntu-latest
 
     steps:
