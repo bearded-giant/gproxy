@@ -43,5 +43,8 @@ jobs:
       - name: test
         run: cargo test --workspace
 
-      - name: build
+      - name: build giantd first (needed for tauri sidecar)
+        run: cargo build -p giantd
+
+      - name: build workspace
         run: cargo build --workspace

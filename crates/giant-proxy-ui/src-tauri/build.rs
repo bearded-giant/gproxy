@@ -18,23 +18,25 @@ fn main() {
         .parent().unwrap()
         .parent().unwrap();
 
-    // PROFILE env var is set by cargo for build scripts
-    let profile = std::env::var("PROFILE").unwrap_or_else(|_| "release".to_string());
-    let giantd_src = workspace_root.join("target").join(&profile).join("giantd");
-
     let binaries_dir = manifest_dir.join("binaries");
     std::fs::create_dir_all(&binaries_dir).ok();
 
     let giantd_dest = binaries_dir.join(format!("giantd-{}", target_triple));
 
-    if giantd_src.exists() {
-        std::fs::copy(&giantd_src, &giantd_dest).expect("failed to copy giantd to binaries/");
-        println!("cargo:warning=copied giantd to {}", giantd_dest.display());
-    } else {
-        println!(
-            "cargo:warning=giantd not found at {}. build giantd first: cargo build --release -p giantd",
-            giantd_src.display()
-        );
+    // check for pre-placed sidecar (CI builds giantd separately, e.g. lipo universal)
+    if !giantd_dest.exists() {
+        // try copying from workspace target dir
+        let profile = std::env::var("PROFILE").unwrap_or_else(|_| "release".to_string());
+        let giantd_src = workspace_root.join("target").join(&profile).join("giantd");
+
+        if giantd_src.exists() {
+            std::fs::copy(&giantd_src, &giantd_dest).expect("failed to copy giantd to binaries/");
+            println!("cargo:warning=copied giantd to {}", giantd_dest.display());
+        } else {
+            // create placeholder so tauri_build doesn't fail during check/clippy/test
+            std::fs::write(&giantd_dest, "").ok();
+            println!("cargo:warning=giantd placeholder created (build giantd first for a real bundle)");
+        }
     }
 
     tauri_build::build()

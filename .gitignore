@@ -20,3 +20,4 @@ scratch/
 
 # local docs
 README-recharge.md
+crates/giant-proxy-ui/src-tauri/binaries/

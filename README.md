@@ -4,6 +4,19 @@ HTTPS proxy with Map Remote rules. Redirect production URLs to local dev servers
 
 Giant Proxy sits between your browser and the internet, intercepting HTTPS requests that match your rules and redirecting them to local services. Think of it as a programmable `/etc/hosts` that works with HTTPS, supports path matching, and has a UI.
 
+## Getting Started (macOS, from GitHub Release)
+
+1. Download the `.dmg` from the [latest release](https://github.com/bearded-giant/gproxy/releases/latest)
+2. Open the `.dmg` and drag **Giant Proxy** to Applications
+3. Launch Giant Proxy -- on first run it generates a CA certificate and prompts for your password to trust it in the system keychain
+4. The daemon (`giantd`) is bundled inside the app. No separate install needed.
+5. Import your Proxyman rules from the Dashboard (Settings > Import from Proxyman) or create a profile manually
+6. Click **Start Proxy** from the tray menu or select a profile in the Dashboard and click **Start**
+
+That's it. The app configures your system proxy automatically when active and restores it when stopped.
+
+The CLI (`giant-proxy`) is available as a separate download from the same release page if you want terminal control. After downloading, run `giant-proxy init` to set up certs, then `giant-proxy on --profile preprod`.
+
 ## Install
 
 ### Homebrew (macOS/Linux)
