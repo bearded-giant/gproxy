@@ -50,7 +50,7 @@
     ],
     "trayIcon": {
       "iconPath": "icons/icon.png",
-      "iconAsTemplate": true,
+      "iconAsTemplate": false,
       "tooltip": "Giant Proxy"
     },
     "security": {

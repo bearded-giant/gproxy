@@ -37,10 +37,14 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         .item(&quit_item)
         .build()?;
 
+    let icon = tauri::image::Image::from_bytes(include_bytes!("../icons/icon.png"))
+        .expect("failed to load tray icon");
+
     TrayIconBuilder::new()
+        .icon(icon)
         .tooltip("Giant Proxy")
         .menu(&menu)
-        .show_menu_on_left_click(false)
+        .show_menu_on_left_click(true)
         .on_menu_event(|app, event| {
             let id = event.id().as_ref();
             match id {
@@ -91,13 +95,12 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                 _ => {}
             }
         })
-        .on_tray_icon_event(|tray, event| {
-            if let TrayIconEvent::Click {
+        .on_tray_icon_event(|tray, event| match event {
+            TrayIconEvent::Click {
                 button: MouseButton::Left,
                 button_state: MouseButtonState::Up,
                 ..
-            } = event
-            {
+            } => {
                 let app = tray.app_handle();
                 if let Some(window) = app.get_webview_window("popover") {
                     if window.is_visible().unwrap_or(false) {
@@ -108,6 +111,7 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
             }
+            _ => {}
         })
         .build(app)?;
 

@@ -116,6 +116,15 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .setup(|app| {
+            #[cfg(target_os = "macos")]
+            {
+                use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy};
+                use objc2::MainThreadMarker;
+                let mtm = MainThreadMarker::new().expect("must be on main thread");
+                let ns_app = NSApplication::sharedApplication(mtm);
+                ns_app.setActivationPolicy(NSApplicationActivationPolicy::Accessory);
+            }
+
             tray::setup_tray(app)?;
 
             let app_handle = app.handle().clone();
