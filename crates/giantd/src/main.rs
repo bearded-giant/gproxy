@@ -32,12 +32,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let event_bus = Arc::new(EventBus::new(256));
     let rules: Arc<RwLock<Vec<giantd::rules::Rule>>> = Arc::new(RwLock::new(Vec::new()));
 
+    let proxy_services: Arc<RwLock<Vec<String>>> = Arc::new(RwLock::new(Vec::new()));
     let state = AppState {
         config: Arc::new(RwLock::new(config)),
         rules: rules.clone(),
         active_profile: Arc::new(RwLock::new(None)),
         event_bus: event_bus.clone(),
         started_at: Arc::new(RwLock::new(Some(chrono::Utc::now()))),
+        proxy_services: proxy_services.clone(),
     };
 
     // remove stale socket
@@ -170,6 +172,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // cleanup
     tracing::info!("shutting down");
+
+    // clear system proxy
+    let services = proxy_services.read().await;
+    if !services.is_empty() {
+        if let Err(e) = giantd::routing::clear_system_proxy(&services) {
+            tracing::warn!("failed to clear system proxy: {}", e);
+        }
+    }
+    drop(services);
+
     let _ = std::fs::remove_file(shutdown_config_dir.join("giantd.sock"));
     pid::cleanup_pid(&shutdown_config_dir).ok();
     let _ = config::write_state(&giantd::config::DaemonState {

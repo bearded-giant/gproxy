@@ -195,10 +195,14 @@ async fn cmd_status(client: &DaemonClient) {
             let mode = resp.get("routing_mode").and_then(|v| v.as_str()).unwrap_or("-");
             let rules = resp.get("rules").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0);
 
+            let enabled = resp.get("rules").and_then(|v| v.as_array()).map(|a| {
+                a.iter().filter(|r| r.get("enabled").and_then(|v| v.as_bool()).unwrap_or(false)).count()
+            }).unwrap_or(0);
+
             if running {
                 println!("  proxy:    active");
                 println!("  profile:  {}", profile);
-                println!("  rules:    {}", rules);
+                println!("  rules:    {} ({} enabled)", rules, enabled);
                 println!("  listen:   {}", addr);
                 println!("  routing:  {}", mode);
             } else {

@@ -22,6 +22,25 @@ impl HttpHandler for ProxyHandler {
         let rules = self.rules.read().await;
         let method = req.method().clone();
 
+        // reconstruct full url for logging
+        let display_url = if req.uri().scheme().is_some() {
+            req.uri().to_string()
+        } else {
+            let host = req
+                .headers()
+                .get("host")
+                .and_then(|h| h.to_str().ok())
+                .unwrap_or("");
+            let path = req
+                .uri()
+                .path_and_query()
+                .map(|pq| pq.as_str())
+                .unwrap_or("/");
+            format!("https://{}{}", host, path)
+        };
+
+        tracing::debug!(uri = %req.uri(), host = ?req.headers().get("host"), url = %display_url, "incoming request");
+
         for rule in rules.iter().filter(|r| r.enabled) {
             if rule.matches(req.uri(), req.headers(), &method) {
                 let (mut parts, body) = req.into_parts();
@@ -39,18 +58,25 @@ impl HttpHandler for ProxyHandler {
 
                 tracing::info!(
                     rule = %rule.id,
+                    url = %display_url,
                     target = %format!("{}://{}:{}", rule.target.scheme, rule.target.host, rule.target.port),
                     "redirected"
                 );
 
                 let _ = self.event_tx.send(ProxyEvent::RequestMatched {
                     rule_id: rule.id.clone(),
-                    url: parts.uri.to_string(),
+                    url: display_url,
+                    method: method.to_string(),
                 });
 
                 return Request::from_parts(parts, body).into();
             }
         }
+
+        let _ = self.event_tx.send(ProxyEvent::RequestPassthrough {
+            url: display_url,
+            method: method.to_string(),
+        });
 
         req.into()
     }

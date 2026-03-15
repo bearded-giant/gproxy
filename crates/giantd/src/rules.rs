@@ -81,7 +81,24 @@ impl Rule {
         }
 
         if let Some(ref re) = self.compiled_regex {
-            let full_url = uri.to_string();
+            // build full URL for regex matching, stripping default ports
+            // hudsucker provides full URI with :443 which breaks most regexes
+            let (scheme, host, path) = if uri.scheme().is_some() {
+                let s = uri.scheme_str().unwrap_or("https");
+                let h = uri.authority().map(|a| a.host()).unwrap_or("");
+                let p = uri.path_and_query().map(|pq| pq.as_str()).unwrap_or("/");
+                (s, h.to_string(), p)
+            } else {
+                let h = headers
+                    .get("host")
+                    .and_then(|h| h.to_str().ok())
+                    .unwrap_or("");
+                // strip port from host header
+                let h = h.split(':').next().unwrap_or(h);
+                let p = uri.path_and_query().map(|pq| pq.as_str()).unwrap_or("/");
+                ("https", h.to_string(), p)
+            };
+            let full_url = format!("{}://{}{}", scheme, host, path);
             return re.is_match(&full_url).unwrap_or(false);
         }
 

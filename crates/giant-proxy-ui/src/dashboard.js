@@ -395,11 +395,11 @@ function renderLogs() {
 
   empty.style.display = "none";
   tbody.innerHTML = filtered.slice(0, 200).map(l => `
-    <tr>
+    <tr class="${l.action === 'redirect' ? 'log-redirect' : ''}">
       <td class="col-time mono">${l.time}</td>
       <td class="col-method">${l.method || "GET"}</td>
       <td class="mono">${l.url}</td>
-      <td class="col-action">redirect</td>
+      <td class="col-action">${l.action || "pass"}</td>
       <td class="col-rule">${l.rule_id}</td>
     </tr>
   `).join("");
@@ -450,7 +450,22 @@ async function startEventStream() {
             time: now.toLocaleTimeString(),
             url: data.data.url || "",
             rule_id: data.data.rule_id || "",
-            method: "",
+            method: data.data.method || "",
+            action: "redirect",
+          });
+          if (logEntries.length > 1000) logEntries.length = 1000;
+          renderLogs();
+        }
+        break;
+      case "RequestPassthrough":
+        if (!logsPaused && data.data) {
+          const now = new Date();
+          logEntries.unshift({
+            time: now.toLocaleTimeString(),
+            url: data.data.url || "",
+            rule_id: "-",
+            method: data.data.method || "",
+            action: "pass",
           });
           if (logEntries.length > 1000) logEntries.length = 1000;
           renderLogs();

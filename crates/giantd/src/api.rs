@@ -19,6 +19,7 @@ pub struct AppState {
     pub active_profile: Arc<RwLock<Option<String>>>,
     pub event_bus: Arc<EventBus>,
     pub started_at: Arc<RwLock<Option<chrono::DateTime<chrono::Utc>>>>,
+    pub proxy_services: Arc<RwLock<Vec<String>>>,
 }
 
 pub fn routes(state: AppState) -> Router {
@@ -96,6 +97,20 @@ async fn switch_profile(
             let rules_loaded = profile.rules.len();
             *state.rules.write().await = profile.rules;
             *state.active_profile.write().await = Some(profile_name.clone());
+            *state.started_at.write().await = Some(chrono::Utc::now());
+
+            // ensure system proxy is set
+            let services = state.proxy_services.read().await.clone();
+            if services.is_empty() {
+                let config = state.config.read().await;
+                match crate::routing::set_system_proxy(config.listen_port) {
+                    Ok(svc) => {
+                        tracing::info!("system proxy set on: {:?}", svc);
+                        *state.proxy_services.write().await = svc;
+                    }
+                    Err(e) => tracing::warn!("failed to set system proxy: {}", e),
+                }
+            }
 
             state.event_bus.send(ProxyEvent::ProfileSwitched {
                 profile: profile_name,
@@ -195,6 +210,16 @@ async fn start_proxy(
             *state.started_at.write().await = Some(chrono::Utc::now());
 
             let config = state.config.read().await;
+
+            // configure system proxy
+            match crate::routing::set_system_proxy(config.listen_port) {
+                Ok(services) => {
+                    tracing::info!("system proxy set on: {:?}", services);
+                    *state.proxy_services.write().await = services;
+                }
+                Err(e) => tracing::warn!("failed to set system proxy: {}", e),
+            }
+
             state.event_bus.send(ProxyEvent::ProxyStarted {
                 listen_addr: format!("127.0.0.1:{}", config.listen_port),
                 profile: name,
@@ -211,6 +236,15 @@ async fn start_proxy(
 }
 
 async fn stop_proxy(State(state): State<AppState>) -> impl IntoResponse {
+    // clear system proxy before stopping
+    let services = state.proxy_services.read().await.clone();
+    if !services.is_empty() {
+        if let Err(e) = crate::routing::clear_system_proxy(&services) {
+            tracing::warn!("failed to clear system proxy: {}", e);
+        }
+        state.proxy_services.write().await.clear();
+    }
+
     state.rules.write().await.clear();
     *state.active_profile.write().await = None;
     *state.started_at.write().await = None;

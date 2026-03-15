@@ -1,9 +1,14 @@
 use crate::daemon::DaemonClient;
+use std::sync::Mutex;
 use tauri::{
     menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     Manager,
 };
+
+pub struct TrayState {
+    pub status_item: tauri::menu::MenuItem<tauri::Wry>,
+}
 
 pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let status_item = MenuItemBuilder::with_id("status", "Giant Proxy not running")
@@ -13,7 +18,6 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let start_item = MenuItemBuilder::with_id("start", "Start Proxy").build(app)?;
     let stop_item = MenuItemBuilder::with_id("stop", "Stop Proxy").build(app)?;
 
-    // build profile submenu dynamically from disk
     let mut profile_sub = SubmenuBuilder::with_id(app, "profiles", "Switch Profile");
     match giantd::config::list_profiles() {
         Ok(profiles) => {
@@ -47,6 +51,10 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         .separator()
         .item(&quit_item)
         .build()?;
+
+    app.manage(Mutex::new(TrayState {
+        status_item: status_item.clone(),
+    }));
 
     TrayIconBuilder::new()
         .icon(tauri::include_image!("icons/tray.png"))
@@ -128,5 +136,51 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         })
         .build(app)?;
 
+    // poll daemon status and update tray text
+    let app_handle = app.handle().clone();
+    tauri::async_runtime::spawn(async move {
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+            let text = get_tray_text().await;
+            if let Some(state) = app_handle.try_state::<Mutex<TrayState>>() {
+                if let Ok(s) = state.lock() {
+                    let _ = s.status_item.set_text(&text);
+                }
+            }
+        }
+    });
+
     Ok(())
+}
+
+async fn get_tray_text() -> String {
+    let client = DaemonClient::new();
+    if !client.is_daemon_running() {
+        return "Giant Proxy not running".to_string();
+    }
+    match client.get("/status").await {
+        Ok(resp) => {
+            let running = resp.get("running").and_then(|v| v.as_bool()).unwrap_or(false);
+            let profile = resp.get("profile").and_then(|v| v.as_str()).unwrap_or("-");
+            let rules = resp
+                .get("rules")
+                .and_then(|v| v.as_array())
+                .map(|a| {
+                    a.iter()
+                        .filter(|r| {
+                            r.get("enabled")
+                                .and_then(|v| v.as_bool())
+                                .unwrap_or(false)
+                        })
+                        .count()
+                })
+                .unwrap_or(0);
+            if running {
+                format!("{} ({} rules)", profile, rules)
+            } else {
+                "Giant Proxy idle".to_string()
+            }
+        }
+        Err(_) => "Giant Proxy not running".to_string(),
+    }
 }

@@ -7,6 +7,11 @@ pub enum ProxyEvent {
     RequestMatched {
         rule_id: String,
         url: String,
+        method: String,
+    },
+    RequestPassthrough {
+        url: String,
+        method: String,
     },
     RuleToggled {
         rule_id: String,
