@@ -9,6 +9,7 @@
 <body>
   <div id="dashboard">
     <div id="status-bar">
+      <img src="icon.png" alt="" class="dashboard-logo" onerror="this.style.display='none'">
       <div id="status-indicator">
         <span id="status-dot"></span>
         <span id="status-text">Connecting...</span>
@@ -64,7 +65,7 @@
       <div class="settings-form">
         <div class="form-group">
           <label for="setting-listen-port">Listen Port</label>
-          <input type="number" id="setting-listen-port" value="8080">
+          <input type="number" id="setting-listen-port" value="9456">
         </div>
         <div class="form-group">
           <label for="setting-pac-port">PAC Port</label>
@@ -112,6 +113,19 @@
         <h4 class="settings-section-title">Import</h4>
         <p class="settings-hint">Import all Map Remote rules directly from a local Proxyman install.</p>
         <button id="btn-proxyman-auto" class="action-btn">Import from Proxyman</button>
+
+        <div class="settings-divider"></div>
+        <div class="about-section">
+          <div class="about-icon">
+            <img src="icon.png" alt="Giant Proxy" width="48" height="48" onerror="this.style.display='none'">
+          </div>
+          <div class="about-info">
+            <div class="about-name">Giant Proxy</div>
+            <div class="about-version" id="about-version">v0.1.0</div>
+            <div class="about-credit">by Bearded Giant</div>
+            <a class="about-link" href="#" id="about-github-link">github.com/bearded-giant/gproxy</a>
+          </div>
+        </div>
       </div>
     </div>
   </div>

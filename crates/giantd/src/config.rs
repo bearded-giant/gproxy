@@ -32,7 +32,7 @@ fn default_version() -> u32 {
     1
 }
 fn default_listen_port() -> u16 {
-    8080
+    9456
 }
 fn default_pac_port() -> u16 {
     9876
@@ -124,7 +124,7 @@ pub fn load_config() -> Result<AppConfig> {
     if !path.exists() {
         return Ok(AppConfig {
             version: 1,
-            listen_port: 8080,
+            listen_port: 9456,
             pac_port: 9876,
             log_level: "info".to_string(),
             log_max_size_mb: 10,

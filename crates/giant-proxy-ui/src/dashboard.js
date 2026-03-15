@@ -567,6 +567,10 @@ function setupEventListeners() {
   document.getElementById("btn-pause-logs").addEventListener("click", toggleLogsPause);
   document.getElementById("btn-clear-logs").addEventListener("click", clearLogs);
   document.getElementById("btn-import-proxyman").addEventListener("click", importProxyman);
+  document.getElementById("about-github-link").addEventListener("click", (e) => {
+    e.preventDefault();
+    window.__TAURI__.shell.open("https://github.com/bearded-giant/gproxy");
+  });
   document.getElementById("btn-start-stop").addEventListener("click", handleStartStop);
 
   document.getElementById("btn-proxyman-auto").addEventListener("click", importProxymanAuto);

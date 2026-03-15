@@ -8,6 +8,8 @@ use tauri::{
 
 pub struct TrayState {
     pub status_item: tauri::menu::MenuItem<tauri::Wry>,
+    pub tray_id: tauri::tray::TrayIconId,
+    pub is_active: bool,
 }
 
 pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
@@ -52,11 +54,15 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         .item(&quit_item)
         .build()?;
 
+    let tray_id = tauri::tray::TrayIconId::new("main");
+
     app.manage(Mutex::new(TrayState {
         status_item: status_item.clone(),
+        tray_id: tray_id.clone(),
+        is_active: false,
     }));
 
-    TrayIconBuilder::new()
+    TrayIconBuilder::with_id(tray_id)
         .icon(tauri::include_image!("icons/tray.png"))
         .icon_as_template(true)
         .tooltip("Giant Proxy")
@@ -136,15 +142,26 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         })
         .build(app)?;
 
-    // poll daemon status and update tray text
+    // poll daemon status and update tray text + icon
     let app_handle = app.handle().clone();
     tauri::async_runtime::spawn(async move {
+        let icon_inactive = tauri::image::Image::from_bytes(include_bytes!("../icons/tray.png")).unwrap();
+        let icon_active = tauri::image::Image::from_bytes(include_bytes!("../icons/tray-active.png")).unwrap();
+
         loop {
             tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-            let text = get_tray_text().await;
+            let (text, active) = get_tray_status().await;
             if let Some(state) = app_handle.try_state::<Mutex<TrayState>>() {
-                if let Ok(s) = state.lock() {
+                if let Ok(mut s) = state.lock() {
                     let _ = s.status_item.set_text(&text);
+                    if active != s.is_active {
+                        s.is_active = active;
+                        if let Some(tray) = app_handle.tray_by_id(&s.tray_id) {
+                            let icon = if active { &icon_active } else { &icon_inactive };
+                            let _ = tray.set_icon(Some(icon.clone()));
+                            let _ = tray.set_icon_as_template(!active);
+                        }
+                    }
                 }
             }
         }
@@ -153,34 +170,42 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-async fn get_tray_text() -> String {
+async fn get_tray_status() -> (String, bool) {
     let client = DaemonClient::new();
     if !client.is_daemon_running() {
-        return "Giant Proxy not running".to_string();
+        return ("Giant Proxy not running".to_string(), false);
     }
     match client.get("/status").await {
         Ok(resp) => {
             let running = resp.get("running").and_then(|v| v.as_bool()).unwrap_or(false);
             let profile = resp.get("profile").and_then(|v| v.as_str()).unwrap_or("-");
-            let rules = resp
-                .get("rules")
-                .and_then(|v| v.as_array())
-                .map(|a| {
-                    a.iter()
-                        .filter(|r| {
-                            r.get("enabled")
-                                .and_then(|v| v.as_bool())
-                                .unwrap_or(false)
-                        })
-                        .count()
-                })
-                .unwrap_or(0);
             if running {
-                format!("{} ({} rules)", profile, rules)
+                let rule_names: Vec<&str> = resp
+                    .get("rules")
+                    .and_then(|v| v.as_array())
+                    .map(|a| {
+                        a.iter()
+                            .filter(|r| {
+                                r.get("enabled")
+                                    .and_then(|v| v.as_bool())
+                                    .unwrap_or(false)
+                            })
+                            .filter_map(|r| r.get("id").and_then(|v| v.as_str()))
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                let text = if rule_names.is_empty() {
+                    format!("{} (no active rules)", profile)
+                } else if rule_names.len() <= 2 {
+                    format!("{}: {}", profile, rule_names.join(", "))
+                } else {
+                    format!("{}: {} +{}", profile, rule_names[0], rule_names.len() - 1)
+                };
+                (text, true)
             } else {
-                "Giant Proxy idle".to_string()
+                ("Giant Proxy idle".to_string(), false)
             }
         }
-        Err(_) => "Giant Proxy not running".to_string(),
+        Err(_) => ("Giant Proxy not running".to_string(), false),
     }
 }
