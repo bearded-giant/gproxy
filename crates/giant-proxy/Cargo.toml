@@ -1,0 +1,21 @@
+[package]
+name = "giant-proxy-cli"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "giant-proxy"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net"] }
+hyper = { version = "1", features = ["client", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio", "client-legacy", "http1"] }
+hyperlocal = "0.9"
+http-body-util = "0.1"
+tower = "0.5"
+dirs = "6"
+giantd = { path = "../giantd" }

@@ -1,0 +1,22 @@
+.DS_Store
+
+# rust
+/target
+**/*.rs.bk
+*.swp
+*.swo
+
+# node/tauri
+node_modules/
+crates/giant-proxy-ui/src-tauri/gen/
+
+# logs
+logs/
+*.log
+
+# workspace
+scratch/
+.giantmem/
+
+# local docs
+README-recharge.md

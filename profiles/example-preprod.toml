@@ -1,0 +1,60 @@
+[meta]
+name = "preprod"
+description = "Preprod environment redirects"
+format_version = 1
+
+[[rules]]
+id = "web_app"
+enabled = true
+preserve_host = true
+
+[rules.match]
+host = "*.preprod.myapp.com"
+path = "/app/*"
+not_path = "/app/api/*"
+
+[rules.target]
+host = "localhost"
+port = 3000
+scheme = "http"
+
+[[rules]]
+id = "api_server"
+enabled = true
+preserve_host = true
+
+[rules.match]
+host = "*.preprod.myapp.com"
+path = "/app/api/*"
+
+[rules.target]
+host = "localhost"
+port = 8080
+scheme = "http"
+
+[[rules]]
+id = "admin_tools"
+enabled = false
+preserve_host = true
+
+[rules.match]
+host = "*.preprod.myapp.com"
+path = "/tools/*"
+
+[rules.target]
+host = "localhost"
+port = 5173
+scheme = "http"
+
+[[rules]]
+id = "versioned_api"
+enabled = false
+preserve_host = false
+
+[rules.match]
+regex = "^https://api-(v[0-9]+)\\.preprod\\.myapp\\.com/.*"
+
+[rules.target]
+host = "localhost"
+port = 9000
+scheme = "http"

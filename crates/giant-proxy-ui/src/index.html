@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Giant Proxy</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+    <header id="status-bar">
+      <div class="status-left">
+        <span class="app-name">Giant Proxy</span>
+        <span id="profile-name" class="profile-badge">--</span>
+      </div>
+      <div class="status-right">
+        <span id="listen-port" class="port-badge">--</span>
+        <span id="proxy-status" class="status-indicator stopped">stopped</span>
+      </div>
+    </header>
+
+    <div id="reconnecting" class="reconnecting-overlay" style="display:none">
+      Reconnecting to daemon...
+    </div>
+
+    <div id="rules-list" class="rules-container">
+      <div class="empty-state">No rules loaded</div>
+    </div>
+
+    <footer id="actions-bar">
+      <select id="profile-select" class="profile-dropdown">
+        <option value="">Switch Profile...</option>
+      </select>
+      <button id="btn-add-rule" class="action-btn" disabled>+ Rule</button>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

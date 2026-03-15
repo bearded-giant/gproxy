@@ -1,0 +1,22 @@
+[package]
+name = "giant-proxy-ui"
+version = "0.1.0"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-shell = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net"] }
+hyper = { version = "1", features = ["client", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio", "client-legacy", "http1"] }
+hyperlocal = "0.9"
+http-body-util = "0.1"
+dirs = "6"
+tokio-tungstenite = "0.26"
+futures-util = "0.3"
+tracing = "0.1"

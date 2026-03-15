@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Giant Proxy Dashboard</title>
+  <link rel="stylesheet" href="dashboard.css">
+</head>
+<body>
+  <div id="dashboard">
+    <nav id="tab-bar">
+      <button class="tab active" data-tab="rules">Rules</button>
+      <button class="tab" data-tab="profiles">Profiles</button>
+      <button class="tab" data-tab="logs">Logs</button>
+      <button class="tab" data-tab="settings">Settings</button>
+    </nav>
+
+    <!-- Rules Tab -->
+    <div id="tab-rules" class="tab-panel active">
+      <div class="toolbar">
+        <input type="text" id="rule-search" class="search-input" placeholder="Filter rules...">
+        <button id="btn-new-rule" class="action-btn primary">+ New Rule</button>
+      </div>
+      <div class="table-container">
+        <table id="rules-table">
+          <thead>
+            <tr>
+              <th class="col-check"></th>
+              <th>Name</th>
+              <th>Match Pattern</th>
+              <th>Target</th>
+              <th class="col-actions">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="rules-tbody"></tbody>
+        </table>
+        <div id="rules-empty" class="empty-state">No rules loaded</div>
+      </div>
+    </div>
+
+    <!-- Profiles Tab -->
+    <div id="tab-profiles" class="tab-panel">
+      <div class="toolbar">
+        <button id="btn-import" class="action-btn">Import</button>
+        <button id="btn-export" class="action-btn">Export</button>
+        <button id="btn-new-profile" class="action-btn primary">+ New Profile</button>
+      </div>
+      <div id="profiles-list" class="profiles-container">
+        <div class="empty-state">No profiles found</div>
+      </div>
+    </div>
+
+    <!-- Logs Tab -->
+    <div id="tab-logs" class="tab-panel">
+      <div class="toolbar">
+        <input type="text" id="log-filter" class="search-input" placeholder="Filter logs...">
+        <button id="btn-pause-logs" class="action-btn">Pause</button>
+        <button id="btn-clear-logs" class="action-btn">Clear</button>
+      </div>
+      <div class="table-container">
+        <table id="logs-table">
+          <thead>
+            <tr>
+              <th class="col-time">Time</th>
+              <th class="col-method">Method</th>
+              <th>URL</th>
+              <th class="col-action">Action</th>
+              <th class="col-rule">Rule</th>
+            </tr>
+          </thead>
+          <tbody id="logs-tbody"></tbody>
+        </table>
+        <div id="logs-empty" class="empty-state">Log capture coming soon</div>
+      </div>
+    </div>
+
+    <!-- Settings Tab -->
+    <div id="tab-settings" class="tab-panel">
+      <div class="settings-form">
+        <div class="form-group">
+          <label for="setting-listen-port">Listen Port</label>
+          <input type="number" id="setting-listen-port" value="8080">
+        </div>
+        <div class="form-group">
+          <label for="setting-pac-port">PAC Port</label>
+          <input type="number" id="setting-pac-port" value="9876">
+        </div>
+        <div class="form-group">
+          <label for="setting-log-level">Log Level</label>
+          <select id="setting-log-level">
+            <option value="error">error</option>
+            <option value="warn">warn</option>
+            <option value="info" selected>info</option>
+            <option value="debug">debug</option>
+            <option value="trace">trace</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="setting-routing-mode">Routing Mode</label>
+          <select id="setting-routing-mode">
+            <option value="manual">manual</option>
+            <option value="pac">pac</option>
+            <option value="system">system</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="setting-auto-start">
+            <input type="checkbox" id="setting-auto-start"> Auto Start
+          </label>
+        </div>
+        <div class="form-group">
+          <label for="setting-default-profile">Default Profile</label>
+          <input type="text" id="setting-default-profile" placeholder="e.g. preprod">
+        </div>
+        <div class="form-group">
+          <label for="setting-bypass-hosts">Bypass Hosts</label>
+          <textarea id="setting-bypass-hosts" rows="3" placeholder="one host per line"></textarea>
+        </div>
+        <button id="btn-save-settings" class="action-btn primary">Save Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Rule Editor Modal -->
+  <div id="rule-modal" class="modal-overlay" style="display:none">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="modal-title">Edit Rule</h3>
+        <button id="btn-modal-close" class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="rule-id">Rule ID</label>
+          <input type="text" id="rule-id" placeholder="my_rule">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="rule-host-pattern">Host Pattern</label>
+            <input type="text" id="rule-host-pattern" placeholder="*.example.com">
+          </div>
+          <div class="form-group">
+            <label for="rule-method">Method</label>
+            <select id="rule-method">
+              <option value="ANY">ANY</option>
+              <option value="GET">GET</option>
+              <option value="POST">POST</option>
+              <option value="PUT">PUT</option>
+              <option value="DELETE">DELETE</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="rule-path-pattern">Path Pattern</label>
+            <input type="text" id="rule-path-pattern" placeholder="/api/*">
+          </div>
+          <div class="form-group">
+            <label for="rule-exclude-path">Exclude Path</label>
+            <input type="text" id="rule-exclude-path" placeholder="/api/health">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="rule-target-host">Target Host</label>
+            <input type="text" id="rule-target-host" placeholder="localhost">
+          </div>
+          <div class="form-group">
+            <label for="rule-target-port">Target Port</label>
+            <input type="number" id="rule-target-port" placeholder="3000">
+          </div>
+          <div class="form-group">
+            <label for="rule-target-scheme">Scheme</label>
+            <select id="rule-target-scheme">
+              <option value="http">http</option>
+              <option value="https">https</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="rule-preserve-host">
+            <input type="checkbox" id="rule-preserve-host" checked> Preserve Host Header
+          </label>
+        </div>
+        <div class="form-group">
+          <label for="rule-regex">Regex (advanced)</label>
+          <textarea id="rule-regex" rows="2" placeholder="^(https)://.*\.example\.com/.*"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="btn-modal-cancel" class="action-btn">Cancel</button>
+        <button id="btn-modal-save" class="action-btn primary">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="dashboard.js"></script>
+</body>
+</html>

@@ -1,0 +1,42 @@
+{
+  "productName": "Giant Proxy",
+  "version": "0.1.0",
+  "identifier": "com.giantproxy.ui",
+  "build": {
+    "frontendDist": "../src"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "label": "popover",
+        "title": "Giant Proxy",
+        "width": 400,
+        "height": 500,
+        "resizable": false,
+        "decorations": false,
+        "visible": false,
+        "skipTaskbar": true
+      },
+      {
+        "label": "dashboard",
+        "title": "Giant Proxy Dashboard",
+        "url": "dashboard.html",
+        "width": 900,
+        "height": 650,
+        "resizable": true,
+        "decorations": true,
+        "visible": false,
+        "center": true
+      }
+    ],
+    "trayIcon": {
+      "iconPath": "icons/icon.png",
+      "iconAsTemplate": true,
+      "tooltip": "Giant Proxy"
+    },
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'"
+    }
+  }
+}
