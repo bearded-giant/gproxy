@@ -37,11 +37,9 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         .item(&quit_item)
         .build()?;
 
-    let icon = tauri::image::Image::from_bytes(include_bytes!("../icons/icon.png"))
-        .expect("failed to load tray icon");
-
     TrayIconBuilder::new()
-        .icon(icon)
+        .icon(tauri::include_image!("icons/tray.png"))
+        .icon_as_template(true)
         .tooltip("Giant Proxy")
         .menu(&menu)
         .show_menu_on_left_click(true)
