@@ -18,6 +18,12 @@ async function init() {
   await loadProfilesTab();
   setInterval(refreshStatus, 3000);
 
+  // load app version into About section
+  try {
+    const ver = await window.__TAURI__.app.getVersion();
+    document.getElementById("about-version").textContent = "v" + ver;
+  } catch (_) {}
+
   // refresh when window becomes visible again (reopened from tray)
   document.addEventListener("visibilitychange", async () => {
     if (!document.hidden) {
@@ -544,6 +550,32 @@ async function importProxymanAuto() {
   }
 }
 
+// -- update check --
+
+async function checkForUpdate() {
+  const btn = document.getElementById("btn-check-update");
+  const result = document.getElementById("update-result");
+  btn.disabled = true;
+  result.textContent = "checking...";
+  result.className = "update-result";
+  try {
+    const resp = await invoke("check_for_update");
+    if (resp.update_available) {
+      result.className = "update-result update-available";
+      result.innerHTML = `v${resp.latest} available -- <a href="#" id="update-link">view release</a><br><span style="font-size:11px;color:#6c7086">brew upgrade giant-proxy</span>`;
+      document.getElementById("update-link").addEventListener("click", (e) => {
+        e.preventDefault();
+        window.__TAURI__.shell.open(resp.url);
+      });
+    } else {
+      result.textContent = "up to date (v" + resp.current + ")";
+    }
+  } catch (e) {
+    result.textContent = "check failed: " + e;
+  }
+  btn.disabled = false;
+}
+
 // -- helpers --
 
 function escapeHtml(s) {
@@ -567,6 +599,7 @@ function setupEventListeners() {
   document.getElementById("btn-pause-logs").addEventListener("click", toggleLogsPause);
   document.getElementById("btn-clear-logs").addEventListener("click", clearLogs);
   document.getElementById("btn-import-proxyman").addEventListener("click", importProxyman);
+  document.getElementById("btn-check-update").addEventListener("click", checkForUpdate);
   document.getElementById("about-github-link").addEventListener("click", (e) => {
     e.preventDefault();
     window.__TAURI__.shell.open("https://github.com/bearded-giant/gproxy");

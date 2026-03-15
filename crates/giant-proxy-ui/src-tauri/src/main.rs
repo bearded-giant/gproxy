@@ -362,6 +362,46 @@ async fn open_dashboard(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+async fn check_for_update(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
+    let current = app.config().version.clone().unwrap_or_default();
+    let current_ver = semver::Version::parse(&current).unwrap_or(semver::Version::new(0, 0, 0));
+
+    let client = reqwest::Client::builder()
+        .user_agent("giant-proxy-update-check")
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let resp = client
+        .get("https://api.github.com/repos/bearded-giant/gproxy/releases/latest")
+        .send()
+        .await
+        .map_err(|e| format!("failed to check: {}", e))?;
+
+    if !resp.status().is_success() {
+        return Err(format!("github returned {}", resp.status()));
+    }
+
+    let body: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
+    let tag = body
+        .get("tag_name")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    let latest_str = tag.strip_prefix('v').unwrap_or(tag);
+    let latest_ver = semver::Version::parse(latest_str).unwrap_or(semver::Version::new(0, 0, 0));
+    let html_url = body
+        .get("html_url")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+
+    Ok(serde_json::json!({
+        "current": current,
+        "latest": latest_str,
+        "update_available": latest_ver > current_ver,
+        "url": html_url,
+    }))
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
@@ -451,6 +491,7 @@ fn main() {
             import_proxyman_auto,
             rename_profile,
             reorder_profiles,
+            check_for_update,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

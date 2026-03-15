@@ -607,6 +607,33 @@ tbody tr:hover {
   border-radius: 3px;
 }
 
+.update-check-row {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.update-result {
+  font-size: 13px;
+  color: #a6adc8;
+}
+
+.update-result a {
+  color: #89b4fa;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.update-result a:hover {
+  text-decoration: underline;
+}
+
+.update-result.update-available {
+  color: #a6e3a1;
+  font-weight: 500;
+}
+
 .about-section {
   grid-column: 1 / -1;
   display: flex;

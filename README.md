@@ -62,41 +62,45 @@ port = 3000
 scheme = "http"
 ```
 
-3. Start the daemon and load the profile:
+3. Start the proxy with a profile:
 
 ```
-giant-proxy daemon start
 giant-proxy on --profile preprod
 ```
 
-4. Configure your shell to route traffic through the proxy:
+This starts the daemon, loads the profile, and configures your system proxy automatically. No manual proxy setup or env vars needed.
+
+4. Open `https://store.preprod.example.com/merchant/settings` in your browser -- it hits your local `:3000` instead.
+
+5. When you're done:
 
 ```
-eval $(giant-proxy env)
+giant-proxy stop
 ```
 
-This sets `HTTP_PROXY`, `HTTPS_PROXY`, `NODE_EXTRA_CA_CERTS`, and `NO_PROXY`.
-
-5. Open `https://store.preprod.example.com/merchant/settings` in your browser -- it hits your local `:3000` instead.
+System proxy is restored automatically.
 
 ## CLI Reference
 
 | Command | Description |
 |---------|-------------|
 | `giant-proxy init` | Create config directory, generate CA cert, install to trust store |
-| `giant-proxy on [--profile NAME]` | Load a profile and start matching (default: preprod) |
+| `giant-proxy start` | Start the daemon |
+| `giant-proxy stop` | Stop the daemon and restore system proxy |
+| `giant-proxy on [--profile NAME]` | Start daemon + load profile + set system proxy (picks first profile if none specified) |
 | `giant-proxy off` | Stop matching, clear active profile |
-| `giant-proxy status` | Show daemon status, active profile, loaded rules |
-| `giant-proxy use PROFILE` | Switch to a different profile |
-| `giant-proxy toggle RULE_ID` | Enable/disable a rule in the active profile |
-| `giant-proxy profiles` | List available profiles |
+| `giant-proxy status` | Show proxy status, active profile, loaded rules (enabled count) |
+| `giant-proxy health` | Full diagnostic: CA cert, trust store, daemon, profiles |
 | `giant-proxy env` | Print shell export statements for proxy env vars |
-| `giant-proxy doctor` | Check CA cert, daemon status, connectivity |
-| `giant-proxy import FILE --all` | Import all profiles from legacy rules.json |
-| `giant-proxy import FILE --as NAME` | Import a single profile from legacy rules.json |
-| `giant-proxy export PROFILE --format FMT` | Export profile (formats: toml, mitmproxy) |
-| `giant-proxy daemon start` | Start the daemon in the background |
-| `giant-proxy daemon stop` | Stop the daemon |
+| `giant-proxy profile list` | List available profiles |
+| `giant-proxy profile show NAME` | Show profile details and rules |
+| `giant-proxy profile create NAME` | Create an empty profile |
+| `giant-proxy profile import FILE --all` | Import profiles from Proxyman or legacy format |
+| `giant-proxy profile import-proxyman` | Import directly from local Proxyman install |
+| `giant-proxy profile export NAME [--format FMT]` | Export profile (formats: toml, mitmproxy) |
+| `giant-proxy rule list PROFILE` | List rules in a profile |
+| `giant-proxy rule add PROFILE --id ID ...` | Add a rule to a profile |
+| `giant-proxy rule toggle PROFILE RULE_ID` | Enable/disable a rule |
 | `giant-proxy daemon install` | Install as a system service (launchd/systemd) |
 | `giant-proxy daemon uninstall` | Remove the system service |
 | `giant-proxy uninstall` | Remove everything: service, CA cert, config directory |
@@ -165,7 +169,7 @@ path = "/app/api/*"
 
 [rules.target]
 host = "localhost"
-port = 8080
+port = 9456
 scheme = "http"
 
 [[rules]]
@@ -186,11 +190,11 @@ scheme = "http"
 
 The optional menubar app (`giant-proxy-ui`) gives you a system tray icon with:
 
-1. **Left-click popover** -- see loaded rules, toggle them on/off, watch match counts in real time, switch profiles.
+1. **Tray status** -- shows active profile and enabled rule names. Icon changes to indicate when the proxy is active.
 
-2. **Right-click menu** -- start/stop proxy, switch profiles, copy proxy env vars to clipboard, open dashboard.
+2. **Tray menu** -- start/stop proxy, switch profiles, open dashboard. Starts the daemon automatically if needed.
 
-3. **Dashboard window** -- full rule editor with create/edit/delete, profile management with import/export, live traffic log, settings panel for all daemon config options.
+3. **Dashboard window** -- full rule editor with create/edit/delete, profile management with import/export and drag-to-reorder, live traffic log with match/passthrough highlighting, settings panel, and About section.
 
 Install it alongside the CLI:
 
@@ -253,9 +257,8 @@ giant-proxy init
 This puts `giantd` and `giant-proxy` into `~/.cargo/bin/`. Then start it up:
 
 ```
-giant-proxy daemon start
+giant-proxy init
 giant-proxy on --profile preprod
-eval $(giant-proxy env)
 ```
 
 To install the menubar app from source:
