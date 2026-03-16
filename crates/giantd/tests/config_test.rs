@@ -33,7 +33,7 @@ bypass_hosts = ["localhost", "127.0.0.1"]
 fn parse_minimal_config_uses_defaults() {
     let toml_str = "";
     let config: AppConfig = toml::from_str(toml_str).expect("should parse empty config");
-    assert_eq!(config.listen_port, 8080);
+    assert_eq!(config.listen_port, 9456);
     assert_eq!(config.pac_port, 9876);
     assert_eq!(config.log_level, "info");
     assert_eq!(config.log_max_size_mb, 10);
@@ -160,7 +160,7 @@ fn reject_duplicate_rule_ids() {
 fn config_defaults() {
     let config = AppConfig {
         version: 1,
-        listen_port: 8080,
+        listen_port: 9456,
         pac_port: 9876,
         log_level: "info".to_string(),
         log_max_size_mb: 10,
@@ -171,7 +171,7 @@ fn config_defaults() {
         browser: None,
         bypass_hosts: vec![],
     };
-    assert_eq!(config.listen_port, 8080);
+    assert_eq!(config.listen_port, 9456);
     assert_eq!(config.pac_port, 9876);
     assert_eq!(config.routing_mode, "manual");
 }

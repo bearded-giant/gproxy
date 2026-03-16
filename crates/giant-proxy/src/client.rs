@@ -71,16 +71,20 @@ impl DaemonClient {
 
         let uri = Uri::new(&self.socket_path, path);
 
-        let body_bytes = match &body {
-            Some(b) => serde_json::to_vec(b)?,
-            None => vec![],
+        let req = match &body {
+            Some(b) => {
+                let body_bytes = serde_json::to_vec(b)?;
+                Request::builder()
+                    .method(method)
+                    .uri(uri)
+                    .header("content-type", "application/json")
+                    .body(Full::new(Bytes::from(body_bytes)))?
+            }
+            None => Request::builder()
+                .method(method)
+                .uri(uri)
+                .body(Full::new(Bytes::new()))?,
         };
-
-        let req = Request::builder()
-            .method(method)
-            .uri(uri)
-            .header("content-type", "application/json")
-            .body(Full::new(Bytes::from(body_bytes)))?;
 
         let client = Client::unix();
         let resp = client.request(req).await?;

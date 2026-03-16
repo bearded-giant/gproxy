@@ -2,6 +2,7 @@ use crate::errors::{GiantError, Result};
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
+#[derive(Debug)]
 pub struct CertAuthority {
     pub cert_path: PathBuf,
     pub key_path: PathBuf,
