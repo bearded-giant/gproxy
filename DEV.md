@@ -1,5 +1,47 @@
 # Dev Workflow
 
+## Getting Started
+
+```bash
+git clone https://github.com/bearded-giant/gproxy.git && cd gproxy
+```
+
+Install the daemon and CLI (builds from source, puts binaries in `~/.cargo/bin/`):
+
+```bash
+cargo install --path crates/giantd && cargo install --path crates/giant-proxy
+```
+
+Initialize config dir and install the CA cert (will prompt for password):
+
+```bash
+giant-proxy init
+```
+
+Import your Proxyman rules (if you have them):
+
+```bash
+giant-proxy profile import-proxyman
+```
+
+Start proxying:
+
+```bash
+giant-proxy on
+```
+
+## Running Tests
+
+```bash
+cargo test --workspace
+```
+
+Lint + format check (same as CI):
+
+```bash
+cargo fmt --check && cargo clippy --workspace -- -D warnings && cargo test --workspace
+```
+
 ## Kill, Rebuild, Relaunch the Tauri App
 
 ```bash
