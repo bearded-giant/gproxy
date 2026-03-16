@@ -65,11 +65,12 @@ jobs:
             target
           key: macos-release-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: build giantd sidecar
+      - name: build sidecars
         run: |
-          cargo build --release --target aarch64-apple-darwin -p giantd
+          cargo build --release --target aarch64-apple-darwin -p giantd -p giant-proxy-cli
           mkdir -p crates/giant-proxy-ui/src-tauri/binaries
           cp target/aarch64-apple-darwin/release/giantd crates/giant-proxy-ui/src-tauri/binaries/giantd-aarch64-apple-darwin
+          cp target/aarch64-apple-darwin/release/giant-proxy crates/giant-proxy-ui/src-tauri/binaries/giant-proxy-aarch64-apple-darwin
 
       - uses: pnpm/action-setup@v4
         with:

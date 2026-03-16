@@ -449,6 +449,32 @@ fn main() {
 
                 if !marker.exists() {
                     let _ = app.autolaunch().enable();
+
+                    // first launch: symlink CLI binaries to /usr/local/bin
+                    if let Some(exe_dir) = std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.to_path_buf())) {
+                        let mut cmds = Vec::new();
+                        for bin in &["giant-proxy", "giantd"] {
+                            let src = exe_dir.join(bin);
+                            let dest = format!("/usr/local/bin/{}", bin);
+                            if src.exists() {
+                                cmds.push(format!("ln -sf '{}' '{}'", src.display(), dest));
+                            }
+                        }
+                        if !cmds.is_empty() {
+                            let script = format!(
+                                "do shell script \"{}\" with administrator privileges with prompt \"Giant Proxy wants to install CLI commands (giant-proxy, giantd) to /usr/local/bin\"",
+                                cmds.join(" && ")
+                            );
+                            match std::process::Command::new("osascript")
+                                .args(["-e", &script])
+                                .status()
+                            {
+                                Ok(s) if s.success() => tracing::info!("CLI symlinked to /usr/local/bin"),
+                                _ => tracing::warn!("CLI symlink skipped"),
+                            }
+                        }
+                    }
+
                     let _ = std::fs::write(&marker, "");
                 }
             }

@@ -1545,7 +1545,7 @@ dependencies = [
 
 [[package]]
 name = "giant-proxy-cli"
-version = "0.1.0"
+version = "0.2.1"
 dependencies = [
  "clap",
  "dirs 6.0.0",
@@ -1562,7 +1562,7 @@ dependencies = [
 
 [[package]]
 name = "giant-proxy-ui"
-version = "0.1.0"
+version = "0.2.1"
 dependencies = [
  "dirs 6.0.0",
  "futures-util",
@@ -1589,7 +1589,7 @@ dependencies = [
 
 [[package]]
 name = "giantd"
-version = "0.1.0"
+version = "0.2.1"
 dependencies = [
  "axum",
  "chrono",
