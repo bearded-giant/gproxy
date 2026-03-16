@@ -8,14 +8,13 @@ Giant Proxy sits between your browser and the internet, intercepting HTTPS reque
 
 1. Download the `.dmg` from the [latest release](https://github.com/bearded-giant/gproxy/releases/latest)
 2. Open the `.dmg` and drag **Giant Proxy** to Applications
-3. Launch Giant Proxy -- on first run it generates a CA certificate and prompts for your password to trust it in the system keychain
-4. The daemon (`giantd`) is bundled inside the app. No separate install needed.
-5. Import your Proxyman rules from the Dashboard (Settings > Import from Proxyman) or create a profile manually
-6. Click **Start Proxy** from the tray menu or select a profile in the Dashboard and click **Start**
+3. Launch Giant Proxy -- on first run it will prompt for your password twice:
+   - once to install CLI commands (`giant-proxy`, `giantd`) to `/usr/local/bin`
+   - once to trust the generated CA certificate in the system keychain
+4. Import your Proxyman rules from the Dashboard (Settings > Import from Proxyman) or create a profile manually
+5. Click **Start Proxy** from the tray menu or select a profile in the Dashboard and click **Start**
 
-That's it. The app configures your system proxy automatically when active and restores it when stopped.
-
-The CLI (`giant-proxy`) is available as a separate download from the same release page if you want terminal control. After downloading, run `giant-proxy init` to set up certs, then `giant-proxy on --profile preprod`.
+That's it. Everything is bundled in the app -- daemon, CLI, and cert setup. The system proxy is configured automatically when active and restored when stopped. The CLI is available in your terminal immediately after install (`giant-proxy status`, `giant-proxy on --profile preprod`, etc).
 
 ## Install
 
