@@ -424,22 +424,43 @@ function clearLogs() {
 // -- settings --
 
 async function loadSettingsTab() {
-  if (daemonRunning) {
-    try {
-      const status = await invoke("get_status");
-      const addr = status.listen_addr || "127.0.0.1:8080";
-      const port = addr.split(":").pop();
-      document.getElementById("setting-listen-port").value = port;
-      document.getElementById("setting-routing-mode").value = status.routing_mode || "manual";
-    } catch (e) {
-      console.error("load settings failed:", e);
-    }
+  try {
+    const cfg = await invoke("get_settings");
+    document.getElementById("setting-listen-port").value = cfg.listen_port || 9456;
+    document.getElementById("setting-pac-port").value = cfg.pac_port || 9876;
+    document.getElementById("setting-log-level").value = cfg.log_level || "info";
+    document.getElementById("setting-routing-mode").value = cfg.routing_mode || "manual";
+    document.getElementById("setting-auto-start").checked = !!cfg.auto_start;
+    document.getElementById("setting-default-profile").value = cfg.default_profile || "";
+    document.getElementById("setting-bypass-hosts").value = (cfg.bypass_hosts || []).join("\n");
+  } catch (e) {
+    console.error("load settings failed:", e);
   }
   try {
     const enabled = await invoke("get_launch_at_login");
     document.getElementById("setting-launch-at-login").checked = enabled;
   } catch (e) {
     console.error("load launch-at-login failed:", e);
+  }
+}
+
+async function saveSettings() {
+  const settings = {
+    listen_port: parseInt(document.getElementById("setting-listen-port").value) || 9456,
+    pac_port: parseInt(document.getElementById("setting-pac-port").value) || 9876,
+    log_level: document.getElementById("setting-log-level").value,
+    routing_mode: document.getElementById("setting-routing-mode").value,
+    auto_start: document.getElementById("setting-auto-start").checked,
+    default_profile: document.getElementById("setting-default-profile").value,
+    bypass_hosts: document.getElementById("setting-bypass-hosts").value,
+  };
+  try {
+    await invoke("save_settings", { settings });
+    const btn = document.getElementById("btn-save-settings");
+    btn.textContent = "Saved";
+    setTimeout(() => { btn.textContent = "Save Settings"; }, 1500);
+  } catch (e) {
+    alert("Save failed: " + e);
   }
 }
 
@@ -607,6 +628,7 @@ function setupEventListeners() {
   document.getElementById("btn-start-stop").addEventListener("click", handleStartStop);
 
   document.getElementById("btn-proxyman-auto").addEventListener("click", importProxymanAuto);
+  document.getElementById("btn-save-settings").addEventListener("click", saveSettings);
 
   document.getElementById("setting-launch-at-login").addEventListener("change", async (e) => {
     try {

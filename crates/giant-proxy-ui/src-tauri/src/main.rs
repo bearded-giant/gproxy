@@ -363,6 +363,55 @@ async fn open_dashboard(app: tauri::AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
+async fn get_settings() -> Result<serde_json::Value, String> {
+    let config = giantd::config::load_config().map_err(|e| e.to_string())?;
+    let profiles = giantd::config::list_profiles().unwrap_or_default();
+    Ok(serde_json::json!({
+        "listen_port": config.listen_port,
+        "pac_port": config.pac_port,
+        "log_level": config.log_level,
+        "routing_mode": config.routing_mode,
+        "auto_start": config.auto_start,
+        "default_profile": config.default_profile,
+        "bypass_hosts": config.bypass_hosts,
+        "profiles": profiles,
+    }))
+}
+
+#[tauri::command]
+async fn save_settings(settings: serde_json::Value) -> Result<serde_json::Value, String> {
+    let mut config = giantd::config::load_config().map_err(|e| e.to_string())?;
+
+    if let Some(v) = settings.get("listen_port").and_then(|v| v.as_u64()) {
+        config.listen_port = v as u16;
+    }
+    if let Some(v) = settings.get("pac_port").and_then(|v| v.as_u64()) {
+        config.pac_port = v as u16;
+    }
+    if let Some(v) = settings.get("log_level").and_then(|v| v.as_str()) {
+        config.log_level = v.to_string();
+    }
+    if let Some(v) = settings.get("routing_mode").and_then(|v| v.as_str()) {
+        config.routing_mode = v.to_string();
+    }
+    if let Some(v) = settings.get("auto_start").and_then(|v| v.as_bool()) {
+        config.auto_start = v;
+    }
+    if let Some(v) = settings.get("default_profile") {
+        config.default_profile = v.as_str().map(|s| s.to_string()).filter(|s| !s.is_empty());
+    }
+    if let Some(v) = settings.get("bypass_hosts").and_then(|v| v.as_str()) {
+        config.bypass_hosts = v.lines()
+            .map(|l| l.trim().to_string())
+            .filter(|l| !l.is_empty())
+            .collect();
+    }
+
+    giantd::config::write_config(&config).map_err(|e| e.to_string())?;
+    Ok(serde_json::json!({"ok": true}))
+}
+
+#[tauri::command]
 async fn check_for_update(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
     let current = app.config().version.clone().unwrap_or_default();
     let current_ver = semver::Version::parse(&current).unwrap_or(semver::Version::new(0, 0, 0));
@@ -402,6 +451,22 @@ async fn check_for_update(app: tauri::AppHandle) -> Result<serde_json::Value, St
     }))
 }
 
+fn install_ca_trust_gui(ca: &giantd::certs::CertAuthority) {
+    let cert_path = ca.cert_path.display().to_string();
+    let script = format!(
+        "do shell script \"security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain '{}'\" with administrator privileges with prompt \"Giant Proxy needs to install its CA certificate to intercept HTTPS traffic.\"",
+        cert_path
+    );
+    match std::process::Command::new("osascript")
+        .args(["-e", &script])
+        .status()
+    {
+        Ok(s) if s.success() => tracing::info!("CA cert installed to trust store"),
+        Ok(_) => tracing::warn!("CA trust install cancelled by user (run `giant-proxy init` from terminal to retry)"),
+        Err(e) => tracing::warn!("CA trust install failed: {} (run `giant-proxy init` from terminal to retry)", e),
+    }
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
@@ -432,18 +497,19 @@ fn main() {
                 let _ = std::fs::create_dir_all(config_dir.join("profiles"));
                 let _ = std::fs::create_dir_all(config_dir.join("logs"));
 
-                // generate CA cert if missing
+                // generate CA cert if missing, install to trust store if needed
                 let ca_cert = config_dir.join("ca").join("giant-proxy-ca.pem");
                 if !ca_cert.exists() {
                     match giantd::certs::CertAuthority::generate(&config_dir) {
                         Ok(ca) => {
                             tracing::info!("generated CA cert");
-                            // install to trust store (prompts for password on macOS)
-                            if let Err(e) = ca.install_trust_store() {
-                                tracing::warn!("CA trust install failed (user can run `giant-proxy init`): {}", e);
-                            }
+                            install_ca_trust_gui(&ca);
                         }
                         Err(e) => tracing::error!("failed to generate CA: {}", e),
+                    }
+                } else if let Ok(ca) = giantd::certs::CertAuthority::load(&config_dir) {
+                    if !ca.is_installed() {
+                        install_ca_trust_gui(&ca);
                     }
                 }
 
@@ -536,6 +602,8 @@ fn main() {
             import_proxyman_auto,
             rename_profile,
             reorder_profiles,
+            get_settings,
+            save_settings,
             check_for_update,
         ])
         .run(tauri::generate_context!())

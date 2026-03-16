@@ -77,11 +77,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             )
             .with_state(pac_state.rules.clone());
 
-        let listener = tokio::net::TcpListener::bind(format!("127.0.0.1:{}", pac_port))
-            .await
-            .expect("failed to bind PAC server");
-        tracing::info!("pac server listening on 127.0.0.1:{}", pac_port);
-        axum::serve(listener, pac_router).await.ok();
+        match tokio::net::TcpListener::bind(format!("127.0.0.1:{}", pac_port)).await {
+            Ok(listener) => {
+                tracing::info!("pac server listening on 127.0.0.1:{}", pac_port);
+                axum::serve(listener, pac_router).await.ok();
+            }
+            Err(e) => {
+                tracing::warn!("pac server failed to bind on port {}: {} (pac disabled, proxy still works)", pac_port, e);
+            }
+        }
     });
 
     // proxy listener via hudsucker

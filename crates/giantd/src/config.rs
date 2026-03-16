@@ -141,6 +141,16 @@ pub fn load_config() -> Result<AppConfig> {
     Ok(config)
 }
 
+pub fn write_config(config: &AppConfig) -> Result<()> {
+    let dir = config_dir();
+    std::fs::create_dir_all(&dir)?;
+    let path = dir.join("config.toml");
+    let content =
+        toml::to_string_pretty(config).map_err(|e| GiantError::ConfigError(e.to_string()))?;
+    std::fs::write(&path, content)?;
+    Ok(())
+}
+
 pub fn load_profile(name: &str) -> Result<Profile> {
     let path = config_dir().join("profiles").join(format!("{}.toml", name));
     let content = std::fs::read_to_string(&path)?;
