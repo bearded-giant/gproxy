@@ -16,14 +16,8 @@ jobs:
     strategy:
       matrix:
         include:
-          - target: x86_64-apple-darwin
-            os: macos-latest
           - target: aarch64-apple-darwin
             os: macos-latest
-          - target: x86_64-unknown-linux-gnu
-            os: ubuntu-latest
-          - target: aarch64-unknown-linux-gnu
-            os: ubuntu-latest
 
     runs-on: ${{ matrix.os }}
 
@@ -35,29 +29,14 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      - name: install cross (linux aarch64)
-        if: matrix.target == 'aarch64-unknown-linux-gnu'
-        run: cargo install cross
-
-      - name: install system deps (ubuntu)
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev
-
       - name: build CLI + daemon
-        run: |
-          if [ "${{ matrix.target }}" = "aarch64-unknown-linux-gnu" ]; then
-            cross build --release --target ${{ matrix.target }} -p giantd -p giant-proxy-cli
-          else
-            cargo build --release --target ${{ matrix.target }} -p giantd -p giant-proxy-cli
-          fi
+        run: cargo build --release --target ${{ matrix.target }} -p giantd -p giant-proxy-cli
 
       - name: package
         run: |
           mkdir -p dist
-          cp target/${{ matrix.target }}/release/giantd dist/ 2>/dev/null || true
-          cp target/${{ matrix.target }}/release/giant-proxy dist/ 2>/dev/null || true
+          cp target/${{ matrix.target }}/release/giantd dist/
+          cp target/${{ matrix.target }}/release/giant-proxy dist/
           tar czf giant-proxy-${{ github.ref_name }}-${{ matrix.target }}.tar.gz -C dist .
 
       - name: upload artifact
@@ -67,17 +46,7 @@ jobs:
           path: giant-proxy-*.tar.gz
 
   build-tauri:
-    strategy:
-      matrix:
-        include:
-          - os: macos-latest
-            rust_targets: aarch64-apple-darwin,x86_64-apple-darwin
-            args: --target universal-apple-darwin
-          - os: ubuntu-latest
-            rust_targets: x86_64-unknown-linux-gnu
-            args: ""
-
-    runs-on: ${{ matrix.os }}
+    runs-on: macos-latest
 
     steps:
       - uses: actions/checkout@v4
@@ -85,32 +54,22 @@ jobs:
       - name: install rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.rust_targets }}
+          targets: aarch64-apple-darwin
 
-      - name: install system deps (ubuntu)
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev
+      - name: cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: macos-release-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      # build giantd for sidecar bundling (must happen before tauri build)
-      - name: build giantd sidecar (macOS universal)
-        if: runner.os == 'macOS'
+      - name: build giantd sidecar
         run: |
           cargo build --release --target aarch64-apple-darwin -p giantd
-          cargo build --release --target x86_64-apple-darwin -p giantd
           mkdir -p crates/giant-proxy-ui/src-tauri/binaries
-          lipo -create \
-            target/aarch64-apple-darwin/release/giantd \
-            target/x86_64-apple-darwin/release/giantd \
-            -output crates/giant-proxy-ui/src-tauri/binaries/giantd-universal-apple-darwin
-
-      - name: build giantd sidecar (linux)
-        if: runner.os == 'Linux'
-        run: |
-          cargo build --release -p giantd
-          mkdir -p crates/giant-proxy-ui/src-tauri/binaries
-          cp target/release/giantd crates/giant-proxy-ui/src-tauri/binaries/giantd-x86_64-unknown-linux-gnu
+          cp target/aarch64-apple-darwin/release/giantd crates/giant-proxy-ui/src-tauri/binaries/giantd-aarch64-apple-darwin
 
       - uses: pnpm/action-setup@v4
         with:
@@ -139,7 +98,7 @@ jobs:
         with:
           projectPath: crates/giant-proxy-ui
           tauriScript: pnpm tauri
-          args: ${{ matrix.args }}
+          args: --target aarch64-apple-darwin
           tagName: ${{ github.ref_name }}
           releaseName: ${{ github.ref_name }}
 
