@@ -238,7 +238,10 @@ async fn get_profile_rule(
     rule_id: String,
 ) -> Result<serde_json::Value, String> {
     let profile = giantd::config::load_profile(&profile_name).map_err(|e| e.to_string())?;
-    let rule = profile.rules.iter().find(|r| r.id == rule_id)
+    let rule = profile
+        .rules
+        .iter()
+        .find(|r| r.id == rule_id)
         .ok_or_else(|| format!("rule '{}' not found", rule_id))?;
     let raw = rule.to_raw();
     Ok(serde_json::json!({
@@ -265,9 +268,7 @@ async fn start_daemon() -> Result<serde_json::Value, String> {
 async fn stop_daemon() -> Result<serde_json::Value, String> {
     let client = DaemonClient::new();
     let _ = client.post("/stop", None).await;
-    let config_dir = dirs::home_dir()
-        .expect("home dir")
-        .join(".giant-proxy");
+    let config_dir = dirs::home_dir().expect("home dir").join(".giant-proxy");
     if let Ok(Some(pid)) = giantd::pid::read_pid(&config_dir) {
         let _ = std::process::Command::new("kill")
             .arg(pid.to_string())
@@ -351,8 +352,8 @@ async fn open_dashboard(app: tauri::AppHandle) -> Result<(), String> {
         #[cfg(target_os = "macos")]
         {
             let _ = app.run_on_main_thread(|| {
-                use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy};
                 use objc2::MainThreadMarker;
+                use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy};
                 let mtm = MainThreadMarker::new().expect("run_on_main_thread");
                 let ns_app = NSApplication::sharedApplication(mtm);
                 ns_app.setActivationPolicy(NSApplicationActivationPolicy::Regular);
@@ -401,7 +402,8 @@ async fn save_settings(settings: serde_json::Value) -> Result<serde_json::Value,
         config.default_profile = v.as_str().map(|s| s.to_string()).filter(|s| !s.is_empty());
     }
     if let Some(v) = settings.get("bypass_hosts").and_then(|v| v.as_str()) {
-        config.bypass_hosts = v.lines()
+        config.bypass_hosts = v
+            .lines()
             .map(|l| l.trim().to_string())
             .filter(|l| !l.is_empty())
             .collect();
@@ -432,16 +434,10 @@ async fn check_for_update(app: tauri::AppHandle) -> Result<serde_json::Value, St
     }
 
     let body: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
-    let tag = body
-        .get("tag_name")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
+    let tag = body.get("tag_name").and_then(|v| v.as_str()).unwrap_or("");
     let latest_str = tag.strip_prefix('v').unwrap_or(tag);
     let latest_ver = semver::Version::parse(latest_str).unwrap_or(semver::Version::new(0, 0, 0));
-    let html_url = body
-        .get("html_url")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
+    let html_url = body.get("html_url").and_then(|v| v.as_str()).unwrap_or("");
 
     Ok(serde_json::json!({
         "current": current,
@@ -462,8 +458,13 @@ fn install_ca_trust_gui(ca: &giantd::certs::CertAuthority) {
         .status()
     {
         Ok(s) if s.success() => tracing::info!("CA cert installed to trust store"),
-        Ok(_) => tracing::warn!("CA trust install cancelled by user (run `giant-proxy init` from terminal to retry)"),
-        Err(e) => tracing::warn!("CA trust install failed: {} (run `giant-proxy init` from terminal to retry)", e),
+        Ok(_) => tracing::warn!(
+            "CA trust install cancelled by user (run `giant-proxy init` from terminal to retry)"
+        ),
+        Err(e) => tracing::warn!(
+            "CA trust install failed: {} (run `giant-proxy init` from terminal to retry)",
+            e
+        ),
     }
 }
 

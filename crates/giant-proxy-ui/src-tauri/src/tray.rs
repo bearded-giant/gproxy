@@ -94,8 +94,8 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
                         #[cfg(target_os = "macos")]
                         {
-                            use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy};
                             use objc2::MainThreadMarker;
+                            use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy};
                             if let Some(mtm) = MainThreadMarker::new() {
                                 let ns_app = NSApplication::sharedApplication(mtm);
                                 ns_app.setActivationPolicy(NSApplicationActivationPolicy::Regular);
@@ -122,12 +122,13 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                 _ => {}
             }
         })
-        .on_tray_icon_event(|tray, event| match event {
-            TrayIconEvent::Click {
+        .on_tray_icon_event(|tray, event| {
+            if let TrayIconEvent::Click {
                 button: MouseButton::Left,
                 button_state: MouseButtonState::Up,
                 ..
-            } => {
+            } = event
+            {
                 let app = tray.app_handle();
                 if let Some(window) = app.get_webview_window("popover") {
                     if window.is_visible().unwrap_or(false) {
@@ -138,15 +139,16 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
             }
-            _ => {}
         })
         .build(app)?;
 
     // poll daemon status and update tray text + icon
     let app_handle = app.handle().clone();
     tauri::async_runtime::spawn(async move {
-        let icon_inactive = tauri::image::Image::from_bytes(include_bytes!("../icons/tray.png")).unwrap();
-        let icon_active = tauri::image::Image::from_bytes(include_bytes!("../icons/tray-active.png")).unwrap();
+        let icon_inactive =
+            tauri::image::Image::from_bytes(include_bytes!("../icons/tray.png")).unwrap();
+        let icon_active =
+            tauri::image::Image::from_bytes(include_bytes!("../icons/tray-active.png")).unwrap();
 
         loop {
             tokio::time::sleep(std::time::Duration::from_secs(2)).await;
@@ -177,7 +179,10 @@ async fn get_tray_status() -> (String, bool) {
     }
     match client.get("/status").await {
         Ok(resp) => {
-            let running = resp.get("running").and_then(|v| v.as_bool()).unwrap_or(false);
+            let running = resp
+                .get("running")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
             let profile = resp.get("profile").and_then(|v| v.as_str()).unwrap_or("-");
             if running {
                 let rule_names: Vec<&str> = resp
@@ -185,11 +190,7 @@ async fn get_tray_status() -> (String, bool) {
                     .and_then(|v| v.as_array())
                     .map(|a| {
                         a.iter()
-                            .filter(|r| {
-                                r.get("enabled")
-                                    .and_then(|v| v.as_bool())
-                                    .unwrap_or(false)
-                            })
+                            .filter(|r| r.get("enabled").and_then(|v| v.as_bool()).unwrap_or(false))
                             .filter_map(|r| r.get("id").and_then(|v| v.as_str()))
                             .collect()
                     })

@@ -83,7 +83,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 axum::serve(listener, pac_router).await.ok();
             }
             Err(e) => {
-                tracing::warn!("pac server failed to bind on port {}: {} (pac disabled, proxy still works)", pac_port, e);
+                tracing::warn!(
+                    "pac server failed to bind on port {}: {} (pac disabled, proxy still works)",
+                    pac_port,
+                    e
+                );
             }
         }
     });

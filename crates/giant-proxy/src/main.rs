@@ -75,10 +75,7 @@ enum ProfileAction {
     /// delete a profile
     Delete { name: String },
     /// rename a profile
-    Rename {
-        old_name: String,
-        new_name: String,
-    },
+    Rename { old_name: String, new_name: String },
     /// set profile display order
     Reorder {
         /// profile names in desired order
@@ -187,20 +184,46 @@ async fn cmd_status(client: &DaemonClient) {
     if !client.is_daemon_running() {
         println!("  proxy:    inactive");
         println!("  profile:  -");
-        println!("  profiles: {}", if profiles.is_empty() { "(none)".to_string() } else { profiles.join(", ") });
+        println!(
+            "  profiles: {}",
+            if profiles.is_empty() {
+                "(none)".to_string()
+            } else {
+                profiles.join(", ")
+            }
+        );
         return;
     }
     match client.get("/status").await {
         Ok(resp) => {
-            let running = resp.get("running").and_then(|v| v.as_bool()).unwrap_or(false);
+            let running = resp
+                .get("running")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
             let profile = resp.get("profile").and_then(|v| v.as_str()).unwrap_or("-");
-            let addr = resp.get("listen_addr").and_then(|v| v.as_str()).unwrap_or("-");
-            let mode = resp.get("routing_mode").and_then(|v| v.as_str()).unwrap_or("-");
-            let rules = resp.get("rules").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0);
+            let addr = resp
+                .get("listen_addr")
+                .and_then(|v| v.as_str())
+                .unwrap_or("-");
+            let mode = resp
+                .get("routing_mode")
+                .and_then(|v| v.as_str())
+                .unwrap_or("-");
+            let rules = resp
+                .get("rules")
+                .and_then(|v| v.as_array())
+                .map(|a| a.len())
+                .unwrap_or(0);
 
-            let enabled = resp.get("rules").and_then(|v| v.as_array()).map(|a| {
-                a.iter().filter(|r| r.get("enabled").and_then(|v| v.as_bool()).unwrap_or(false)).count()
-            }).unwrap_or(0);
+            let enabled = resp
+                .get("rules")
+                .and_then(|v| v.as_array())
+                .map(|a| {
+                    a.iter()
+                        .filter(|r| r.get("enabled").and_then(|v| v.as_bool()).unwrap_or(false))
+                        .count()
+                })
+                .unwrap_or(0);
 
             if running {
                 println!("  proxy:    active");
@@ -210,14 +233,28 @@ async fn cmd_status(client: &DaemonClient) {
                 println!("  routing:  {}", mode);
             } else {
                 println!("  proxy:    idle (no profile loaded)");
-                println!("  profiles: {}", if profiles.is_empty() { "(none)".to_string() } else { profiles.join(", ") });
+                println!(
+                    "  profiles: {}",
+                    if profiles.is_empty() {
+                        "(none)".to_string()
+                    } else {
+                        profiles.join(", ")
+                    }
+                );
             }
         }
         Err(_) => {
             // socket exists but daemon not responding (shutting down or stale)
             println!("  proxy:    inactive");
             println!("  profile:  -");
-            println!("  profiles: {}", if profiles.is_empty() { "(none)".to_string() } else { profiles.join(", ") });
+            println!(
+                "  profiles: {}",
+                if profiles.is_empty() {
+                    "(none)".to_string()
+                } else {
+                    profiles.join(", ")
+                }
+            );
         }
     }
 }
@@ -239,31 +276,35 @@ fn cmd_profile(action: ProfileAction) {
                 }
             }
         }
-        ProfileAction::Show { name } => {
-            match giantd::config::load_profile(&name) {
-                Ok(p) => {
-                    println!("profile: {}", name);
-                    if let Some(desc) = &p.meta.description {
-                        println!("  desc: {}", desc);
-                    }
-                    println!("  rules: {}", p.rules.len());
-                    println!();
-                    for r in &p.rules {
-                        let status = if r.enabled { "on " } else { "off" };
-                        let match_str = r.match_rule.regex.as_deref()
-                            .or(r.match_rule.host.as_deref())
-                            .unwrap_or("-");
-                        println!("  [{}] {}", status, r.id);
-                        println!("        match:  {}", match_str);
-                        println!("        target: {}://{}:{}", r.target.scheme, r.target.host, r.target.port);
-                    }
+        ProfileAction::Show { name } => match giantd::config::load_profile(&name) {
+            Ok(p) => {
+                println!("profile: {}", name);
+                if let Some(desc) = &p.meta.description {
+                    println!("  desc: {}", desc);
                 }
-                Err(e) => {
-                    eprintln!("error: {}", e);
-                    std::process::exit(1);
+                println!("  rules: {}", p.rules.len());
+                println!();
+                for r in &p.rules {
+                    let status = if r.enabled { "on " } else { "off" };
+                    let match_str = r
+                        .match_rule
+                        .regex
+                        .as_deref()
+                        .or(r.match_rule.host.as_deref())
+                        .unwrap_or("-");
+                    println!("  [{}] {}", status, r.id);
+                    println!("        match:  {}", match_str);
+                    println!(
+                        "        target: {}://{}:{}",
+                        r.target.scheme, r.target.host, r.target.port
+                    );
                 }
             }
-        }
+            Err(e) => {
+                eprintln!("error: {}", e);
+                std::process::exit(1);
+            }
+        },
         ProfileAction::Create { name } => {
             let profile = giantd::config::ProfileRaw {
                 meta: giantd::config::ProfileMeta {
@@ -295,15 +336,19 @@ fn cmd_profile(action: ProfileAction) {
         ProfileAction::Rename { old_name, new_name } => {
             match giantd::config::rename_profile(&old_name, &new_name) {
                 Ok(()) => println!("renamed '{}' -> '{}'", old_name, new_name),
-                Err(e) => { eprintln!("error: {}", e); std::process::exit(1); }
+                Err(e) => {
+                    eprintln!("error: {}", e);
+                    std::process::exit(1);
+                }
             }
         }
-        ProfileAction::Reorder { names } => {
-            match giantd::config::save_profile_order(&names) {
-                Ok(()) => println!("profile order saved"),
-                Err(e) => { eprintln!("error: {}", e); std::process::exit(1); }
+        ProfileAction::Reorder { names } => match giantd::config::save_profile_order(&names) {
+            Ok(()) => println!("profile order saved"),
+            Err(e) => {
+                eprintln!("error: {}", e);
+                std::process::exit(1);
             }
-        }
+        },
         ProfileAction::Import { file, all } => {
             let path = std::path::Path::new(&file);
             if !path.exists() {
@@ -332,9 +377,9 @@ fn cmd_profile(action: ProfileAction) {
             }
         }
         ProfileAction::ImportProxyman => {
-            let path = dirs::home_dir()
-                .expect("home dir")
-                .join("Library/Application Support/com.proxyman.NSProxy/user-data/MapRemoteService");
+            let path = dirs::home_dir().expect("home dir").join(
+                "Library/Application Support/com.proxyman.NSProxy/user-data/MapRemoteService",
+            );
             if !path.exists() {
                 eprintln!("proxyman config not found at {}", path.display());
                 std::process::exit(1);
@@ -343,7 +388,9 @@ fn cmd_profile(action: ProfileAction) {
                 Ok(profiles) => {
                     for (pname, profile) in &profiles {
                         match giantd::convert::save_profile(profile) {
-                            Ok(()) => println!("  imported: {} ({} rules)", pname, profile.rules.len()),
+                            Ok(()) => {
+                                println!("  imported: {} ({} rules)", pname, profile.rules.len())
+                            }
                             Err(e) => eprintln!("  failed {}: {}", pname, e),
                         }
                     }
@@ -355,28 +402,26 @@ fn cmd_profile(action: ProfileAction) {
                 }
             }
         }
-        ProfileAction::Export { name, format } => {
-            match giantd::config::load_profile(&name) {
-                Ok(loaded) => {
-                    let raw = giantd::config::ProfileRaw {
-                        meta: loaded.meta,
-                        rules: loaded.rules.iter().map(|r| r.to_raw()).collect(),
-                    };
-                    match format.as_str() {
-                        "toml" => match giantd::convert::export_toml(&raw) {
-                            Ok(content) => print!("{}", content),
-                            Err(e) => eprintln!("export failed: {}", e),
-                        },
-                        "mitmproxy" => print!("{}", giantd::convert::export_mitmproxy_addon(&raw)),
-                        _ => eprintln!("unknown format: {}. supported: toml, mitmproxy", format),
-                    }
-                }
-                Err(e) => {
-                    eprintln!("error: {}", e);
-                    std::process::exit(1);
+        ProfileAction::Export { name, format } => match giantd::config::load_profile(&name) {
+            Ok(loaded) => {
+                let raw = giantd::config::ProfileRaw {
+                    meta: loaded.meta,
+                    rules: loaded.rules.iter().map(|r| r.to_raw()).collect(),
+                };
+                match format.as_str() {
+                    "toml" => match giantd::convert::export_toml(&raw) {
+                        Ok(content) => print!("{}", content),
+                        Err(e) => eprintln!("export failed: {}", e),
+                    },
+                    "mitmproxy" => print!("{}", giantd::convert::export_mitmproxy_addon(&raw)),
+                    _ => eprintln!("unknown format: {}. supported: toml, mitmproxy", format),
                 }
             }
-        }
+            Err(e) => {
+                eprintln!("error: {}", e);
+                std::process::exit(1);
+            }
+        },
     }
 }
 
@@ -384,69 +429,80 @@ fn cmd_profile(action: ProfileAction) {
 
 fn cmd_rule(action: RuleAction) {
     match action {
-        RuleAction::List { profile } => {
-            match giantd::config::load_profile(&profile) {
-                Ok(p) => {
-                    if p.rules.is_empty() {
-                        println!("no rules in profile '{}'", profile);
-                        return;
-                    }
-                    for r in &p.rules {
-                        let status = if r.enabled { "on " } else { "off" };
-                        let match_str = r.match_rule.regex.as_deref()
-                            .or(r.match_rule.host.as_deref())
-                            .unwrap_or("-");
-                        let target = format!("{}://{}:{}", r.target.scheme, r.target.host, r.target.port);
-                        println!("  [{}] {:30} {} -> {}", status, r.id, match_str, target);
-                    }
+        RuleAction::List { profile } => match giantd::config::load_profile(&profile) {
+            Ok(p) => {
+                if p.rules.is_empty() {
+                    println!("no rules in profile '{}'", profile);
+                    return;
                 }
-                Err(e) => {
-                    eprintln!("error: {}", e);
-                    std::process::exit(1);
+                for r in &p.rules {
+                    let status = if r.enabled { "on " } else { "off" };
+                    let match_str = r
+                        .match_rule
+                        .regex
+                        .as_deref()
+                        .or(r.match_rule.host.as_deref())
+                        .unwrap_or("-");
+                    let target =
+                        format!("{}://{}:{}", r.target.scheme, r.target.host, r.target.port);
+                    println!("  [{}] {:30} {} -> {}", status, r.id, match_str, target);
                 }
             }
-        }
-        RuleAction::Show { profile, rule_id } => {
-            match giantd::config::load_profile(&profile) {
-                Ok(p) => {
-                    match p.rules.iter().find(|r| r.id == rule_id) {
-                        Some(r) => {
-                            println!("rule: {}", r.id);
-                            println!("  enabled: {}", r.enabled);
-                            println!("  preserve_host: {}", r.preserve_host);
-                            if let Some(ref re) = r.match_rule.regex {
-                                println!("  match.regex: {}", re);
-                            }
-                            if let Some(ref h) = r.match_rule.host {
-                                println!("  match.host: {}", h);
-                            }
-                            if let Some(ref p) = r.match_rule.path {
-                                println!("  match.path: {}", p);
-                            }
-                            if let Some(ref m) = r.match_rule.method {
-                                println!("  match.method: {}", m);
-                            }
-                            println!("  target: {}://{}:{}", r.target.scheme, r.target.host, r.target.port);
-                        }
-                        None => {
-                            eprintln!("rule '{}' not found in profile '{}'", rule_id, profile);
-                            std::process::exit(1);
-                        }
+            Err(e) => {
+                eprintln!("error: {}", e);
+                std::process::exit(1);
+            }
+        },
+        RuleAction::Show { profile, rule_id } => match giantd::config::load_profile(&profile) {
+            Ok(p) => match p.rules.iter().find(|r| r.id == rule_id) {
+                Some(r) => {
+                    println!("rule: {}", r.id);
+                    println!("  enabled: {}", r.enabled);
+                    println!("  preserve_host: {}", r.preserve_host);
+                    if let Some(ref re) = r.match_rule.regex {
+                        println!("  match.regex: {}", re);
                     }
+                    if let Some(ref h) = r.match_rule.host {
+                        println!("  match.host: {}", h);
+                    }
+                    if let Some(ref p) = r.match_rule.path {
+                        println!("  match.path: {}", p);
+                    }
+                    if let Some(ref m) = r.match_rule.method {
+                        println!("  match.method: {}", m);
+                    }
+                    println!(
+                        "  target: {}://{}:{}",
+                        r.target.scheme, r.target.host, r.target.port
+                    );
                 }
-                Err(e) => {
-                    eprintln!("error: {}", e);
+                None => {
+                    eprintln!("rule '{}' not found in profile '{}'", rule_id, profile);
                     std::process::exit(1);
                 }
+            },
+            Err(e) => {
+                eprintln!("error: {}", e);
+                std::process::exit(1);
             }
-        }
+        },
         RuleAction::Add {
-            profile, id, regex, host, path,
-            target_host, target_port, target_scheme, disabled,
+            profile,
+            id,
+            regex,
+            host,
+            path,
+            target_host,
+            target_port,
+            target_scheme,
+            disabled,
         } => {
             let mut profile_raw = match load_profile_raw(&profile) {
                 Ok(p) => p,
-                Err(e) => { eprintln!("error: {}", e); std::process::exit(1); }
+                Err(e) => {
+                    eprintln!("error: {}", e);
+                    std::process::exit(1);
+                }
             };
 
             if profile_raw.rules.iter().any(|r| r.id == id) {
@@ -477,13 +533,19 @@ fn cmd_rule(action: RuleAction) {
             profile_raw.rules.push(rule);
             match giantd::config::write_profile(&profile_raw) {
                 Ok(()) => println!("added rule '{}' to profile '{}'", id, profile),
-                Err(e) => { eprintln!("error: {}", e); std::process::exit(1); }
+                Err(e) => {
+                    eprintln!("error: {}", e);
+                    std::process::exit(1);
+                }
             }
         }
         RuleAction::Delete { profile, rule_id } => {
             let mut profile_raw = match load_profile_raw(&profile) {
                 Ok(p) => p,
-                Err(e) => { eprintln!("error: {}", e); std::process::exit(1); }
+                Err(e) => {
+                    eprintln!("error: {}", e);
+                    std::process::exit(1);
+                }
             };
 
             let before = profile_raw.rules.len();
@@ -495,13 +557,19 @@ fn cmd_rule(action: RuleAction) {
 
             match giantd::config::write_profile(&profile_raw) {
                 Ok(()) => println!("deleted rule '{}' from profile '{}'", rule_id, profile),
-                Err(e) => { eprintln!("error: {}", e); std::process::exit(1); }
+                Err(e) => {
+                    eprintln!("error: {}", e);
+                    std::process::exit(1);
+                }
             }
         }
         RuleAction::Toggle { profile, rule_id } => {
             let mut profile_raw = match load_profile_raw(&profile) {
                 Ok(p) => p,
-                Err(e) => { eprintln!("error: {}", e); std::process::exit(1); }
+                Err(e) => {
+                    eprintln!("error: {}", e);
+                    std::process::exit(1);
+                }
             };
 
             match profile_raw.rules.iter_mut().find(|r| r.id == rule_id) {
@@ -510,7 +578,10 @@ fn cmd_rule(action: RuleAction) {
                     let state = if r.enabled { "enabled" } else { "disabled" };
                     match giantd::config::write_profile(&profile_raw) {
                         Ok(()) => println!("{} rule '{}' in profile '{}'", state, rule_id, profile),
-                        Err(e) => { eprintln!("error: {}", e); std::process::exit(1); }
+                        Err(e) => {
+                            eprintln!("error: {}", e);
+                            std::process::exit(1);
+                        }
                     }
                 }
                 None => {
@@ -642,10 +713,23 @@ fn cmd_doctor(client: &DaemonClient) {
         .expect("home directory must exist")
         .join(".giant-proxy");
     let ca_cert = config_dir.join("ca").join("giant-proxy-ca.pem");
-    println!("  CA cert: {}", if ca_cert.exists() { "found" } else { "MISSING" });
+    println!(
+        "  CA cert: {}",
+        if ca_cert.exists() { "found" } else { "MISSING" }
+    );
     let ca_key = config_dir.join("ca").join("giant-proxy-ca-key.pem");
-    println!("  CA key:  {}", if ca_key.exists() { "found" } else { "MISSING" });
-    println!("  daemon:  {}", if client.is_daemon_running() { "running" } else { "stopped" });
+    println!(
+        "  CA key:  {}",
+        if ca_key.exists() { "found" } else { "MISSING" }
+    );
+    println!(
+        "  daemon:  {}",
+        if client.is_daemon_running() {
+            "running"
+        } else {
+            "stopped"
+        }
+    );
 }
 
 fn cmd_init() {
@@ -731,17 +815,38 @@ async fn cmd_uninstall(client: &DaemonClient) {
                 .join(".giant-proxy/ca/giant-proxy-ca.pem");
             if ca_path.exists() {
                 let _ = std::process::Command::new("sudo")
-                    .args(["security", "remove-trusted-cert", "-d", &ca_path.to_string_lossy()])
+                    .args([
+                        "security",
+                        "remove-trusted-cert",
+                        "-d",
+                        &ca_path.to_string_lossy(),
+                    ])
                     .status();
             }
         }
         "linux" => {
-            let _ = std::process::Command::new("systemctl").args(["--user", "stop", "giantd"]).status();
-            let _ = std::process::Command::new("systemctl").args(["--user", "disable", "giantd"]).status();
-            let unit = dirs::home_dir().unwrap().join(".config/systemd/user/giantd.service");
-            if unit.exists() { let _ = std::fs::remove_file(&unit); }
-            let _ = std::process::Command::new("sudo").args(["rm", "-f", "/usr/local/share/ca-certificates/giant-proxy-ca.crt"]).status();
-            let _ = std::process::Command::new("sudo").args(["update-ca-certificates"]).status();
+            let _ = std::process::Command::new("systemctl")
+                .args(["--user", "stop", "giantd"])
+                .status();
+            let _ = std::process::Command::new("systemctl")
+                .args(["--user", "disable", "giantd"])
+                .status();
+            let unit = dirs::home_dir()
+                .unwrap()
+                .join(".config/systemd/user/giantd.service");
+            if unit.exists() {
+                let _ = std::fs::remove_file(&unit);
+            }
+            let _ = std::process::Command::new("sudo")
+                .args([
+                    "rm",
+                    "-f",
+                    "/usr/local/share/ca-certificates/giant-proxy-ca.crt",
+                ])
+                .status();
+            let _ = std::process::Command::new("sudo")
+                .args(["update-ca-certificates"])
+                .status();
         }
         _ => {}
     }
@@ -828,15 +933,13 @@ async fn cmd_on(client: &DaemonClient, profile: Option<String>, enabled_rules: V
     ensure_daemon(client).await;
     let name = match profile {
         Some(n) => n,
-        None => {
-            match giantd::config::list_profiles() {
-                Ok(profiles) if !profiles.is_empty() => profiles[0].clone(),
-                _ => {
-                    eprintln!("no profiles found. create one with: giant-proxy profile create <name>");
-                    std::process::exit(1);
-                }
+        None => match giantd::config::list_profiles() {
+            Ok(profiles) if !profiles.is_empty() => profiles[0].clone(),
+            _ => {
+                eprintln!("no profiles found. create one with: giant-proxy profile create <name>");
+                std::process::exit(1);
             }
-        }
+        },
     };
 
     let body = if enabled_rules.is_empty() {
@@ -847,8 +950,14 @@ async fn cmd_on(client: &DaemonClient, profile: Option<String>, enabled_rules: V
 
     match client.post(&format!("/use/{}", name), body).await {
         Ok(resp) => {
-            let loaded = resp.get("rules_loaded").and_then(|v| v.as_u64()).unwrap_or(0);
-            let enabled = resp.get("rules_enabled").and_then(|v| v.as_u64()).unwrap_or(loaded);
+            let loaded = resp
+                .get("rules_loaded")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0);
+            let enabled = resp
+                .get("rules_enabled")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(loaded);
             if !enabled_rules.is_empty() {
                 println!("proxy on: {} ({} enabled)", name, enabled);
             } else {
@@ -878,17 +987,44 @@ async fn cmd_health(client: &DaemonClient) {
 
     let check = |ok: bool| if ok { "ok" } else { "MISSING" };
 
-    println!("  daemon:     {}", if daemon_ok { "running" } else { "stopped" });
+    println!(
+        "  daemon:     {}",
+        if daemon_ok { "running" } else { "stopped" }
+    );
     println!("  CA cert:    {}", check(ca_ok));
-    println!("  CA trusted: {}", if ca_trusted { "yes" } else { "no -- run: giant-proxy init" });
-    println!("  profiles:   {}", if profiles_ok { format!("{} found", profiles.len()) } else { "none".to_string() });
+    println!(
+        "  CA trusted: {}",
+        if ca_trusted {
+            "yes"
+        } else {
+            "no -- run: giant-proxy init"
+        }
+    );
+    println!(
+        "  profiles:   {}",
+        if profiles_ok {
+            format!("{} found", profiles.len())
+        } else {
+            "none".to_string()
+        }
+    );
 
     if daemon_ok {
         match client.get("/status").await {
             Ok(resp) => {
-                let running = resp.get("running").and_then(|v| v.as_bool()).unwrap_or(false);
+                let running = resp
+                    .get("running")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false);
                 let profile = resp.get("profile").and_then(|v| v.as_str()).unwrap_or("-");
-                println!("  proxy:      {}", if running { format!("active ({})", profile) } else { "idle".to_string() });
+                println!(
+                    "  proxy:      {}",
+                    if running {
+                        format!("active ({})", profile)
+                    } else {
+                        "idle".to_string()
+                    }
+                );
             }
             Err(_) => println!("  proxy:      error reaching daemon"),
         }
@@ -896,9 +1032,7 @@ async fn cmd_health(client: &DaemonClient) {
 
     if !ca_ok || !ca_trusted || !profiles_ok {
         println!();
-        if !ca_ok {
-            println!("  fix: giant-proxy init");
-        } else if !ca_trusted {
+        if !ca_ok || !ca_trusted {
             println!("  fix: giant-proxy init");
         }
         if !profiles_ok {

@@ -52,6 +52,7 @@ fn default_http() -> String {
 }
 
 impl Rule {
+    #[allow(clippy::result_large_err)]
     pub fn from_raw(raw: RuleRaw) -> std::result::Result<Self, fancy_regex::Error> {
         let compiled_regex = match &raw.match_rule.regex {
             Some(re_str) => Some(Regex::new(re_str)?),

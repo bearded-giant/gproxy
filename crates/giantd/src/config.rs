@@ -179,7 +179,8 @@ pub fn list_profiles() -> Result<Vec<String>> {
     let order_path = dir.join(".order");
     if order_path.exists() {
         if let Ok(content) = std::fs::read_to_string(&order_path) {
-            let ordered: Vec<String> = content.lines()
+            let ordered: Vec<String> = content
+                .lines()
                 .map(|l| l.trim().to_string())
                 .filter(|l| !l.is_empty())
                 .collect();
@@ -205,10 +206,16 @@ pub fn rename_profile(old_name: &str, new_name: &str) -> Result<()> {
     let new_path = dir.join(format!("{}.toml", new_name));
 
     if !old_path.exists() {
-        return Err(GiantError::ConfigError(format!("profile '{}' not found", old_name)));
+        return Err(GiantError::ConfigError(format!(
+            "profile '{}' not found",
+            old_name
+        )));
     }
     if new_path.exists() {
-        return Err(GiantError::ConfigError(format!("profile '{}' already exists", new_name)));
+        return Err(GiantError::ConfigError(format!(
+            "profile '{}' already exists",
+            new_name
+        )));
     }
 
     // update meta.name inside the file
@@ -216,8 +223,8 @@ pub fn rename_profile(old_name: &str, new_name: &str) -> Result<()> {
     let mut raw: ProfileRaw = toml::from_str(&content)
         .map_err(|e| GiantError::ConfigError(format!("failed to parse profile: {}", e)))?;
     raw.meta.name = new_name.to_string();
-    let new_content = toml::to_string_pretty(&raw)
-        .map_err(|e| GiantError::ConfigError(e.to_string()))?;
+    let new_content =
+        toml::to_string_pretty(&raw).map_err(|e| GiantError::ConfigError(e.to_string()))?;
     std::fs::write(&new_path, new_content)?;
     std::fs::remove_file(&old_path)?;
 
@@ -225,7 +232,8 @@ pub fn rename_profile(old_name: &str, new_name: &str) -> Result<()> {
     let order_path = dir.join(".order");
     if order_path.exists() {
         if let Ok(content) = std::fs::read_to_string(&order_path) {
-            let updated: String = content.lines()
+            let updated: String = content
+                .lines()
                 .map(|l| if l.trim() == old_name { new_name } else { l })
                 .collect::<Vec<_>>()
                 .join("\n");

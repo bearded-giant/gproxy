@@ -60,7 +60,11 @@ fn generated_key_has_600_permissions() {
 
     let meta = std::fs::metadata(&ca.key_path).unwrap();
     let mode = meta.permissions().mode() & 0o777;
-    assert_eq!(mode, 0o600, "key should have 600 permissions, got {:o}", mode);
+    assert_eq!(
+        mode, 0o600,
+        "key should have 600 permissions, got {:o}",
+        mode
+    );
 }
 
 #[test]
@@ -145,7 +149,11 @@ fn check_permissions_fails_for_644() {
     let result = ca.check_permissions();
     assert!(result.is_err(), "should reject 644 permissions");
     let err = result.unwrap_err().to_string();
-    assert!(err.contains("644"), "error should mention actual mode: {}", err);
+    assert!(
+        err.contains("644"),
+        "error should mention actual mode: {}",
+        err
+    );
 }
 
 #[test]

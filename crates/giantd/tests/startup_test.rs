@@ -39,7 +39,10 @@ async fn tcp_listener_frees_port_on_drop() {
 
     // should be able to rebind after drop
     let result = tokio::net::TcpListener::bind(format!("127.0.0.1:{}", port)).await;
-    assert!(result.is_ok(), "port should be free after listener is dropped");
+    assert!(
+        result.is_ok(),
+        "port should be free after listener is dropped"
+    );
 }
 
 // -- unix socket API binding --
@@ -76,7 +79,10 @@ async fn stale_socket_cleanup_allows_rebind() {
 
     // rebind should work
     let listener = tokio::net::UnixListener::bind(&socket_path);
-    assert!(listener.is_ok(), "should rebind after removing stale socket");
+    assert!(
+        listener.is_ok(),
+        "should rebind after removing stale socket"
+    );
 }
 
 #[tokio::test]

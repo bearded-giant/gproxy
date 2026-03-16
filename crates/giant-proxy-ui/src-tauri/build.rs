@@ -14,9 +14,12 @@ fn main() {
     let manifest_dir = std::path::PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
     // src-tauri -> giant-proxy-ui -> crates -> gproxy (workspace root)
     let workspace_root = manifest_dir
-        .parent().unwrap()
-        .parent().unwrap()
-        .parent().unwrap();
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap();
 
     let binaries_dir = manifest_dir.join("binaries");
     std::fs::create_dir_all(&binaries_dir).ok();
@@ -28,7 +31,8 @@ fn main() {
         if !dest.exists() {
             let src = workspace_root.join("target").join(&profile).join(bin_name);
             if src.exists() {
-                std::fs::copy(&src, &dest).expect(&format!("failed to copy {} to binaries/", bin_name));
+                std::fs::copy(&src, &dest)
+                    .unwrap_or_else(|_| panic!("failed to copy {} to binaries/", bin_name));
                 println!("cargo:warning=copied {} to {}", bin_name, dest.display());
             } else {
                 std::fs::write(&dest, "").ok();

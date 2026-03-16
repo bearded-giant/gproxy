@@ -136,7 +136,10 @@ async fn switch_profile(
                 rules_loaded,
             });
 
-            Json(json!({ "ok": true, "rules_loaded": rules_loaded, "rules_enabled": rules_enabled })).into_response()
+            Json(
+                json!({ "ok": true, "rules_loaded": rules_loaded, "rules_enabled": rules_enabled }),
+            )
+            .into_response()
         }
         Err(e) => (
             StatusCode::BAD_REQUEST,

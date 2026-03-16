@@ -102,11 +102,21 @@ impl ProxymanMethod {
         if self.any.is_some() {
             return None; // ANY = no filter
         }
-        if self.get.is_some() { return Some("GET".to_string()); }
-        if self.post.is_some() { return Some("POST".to_string()); }
-        if self.put.is_some() { return Some("PUT".to_string()); }
-        if self.delete.is_some() { return Some("DELETE".to_string()); }
-        if self.patch.is_some() { return Some("PATCH".to_string()); }
+        if self.get.is_some() {
+            return Some("GET".to_string());
+        }
+        if self.post.is_some() {
+            return Some("POST".to_string());
+        }
+        if self.put.is_some() {
+            return Some("PUT".to_string());
+        }
+        if self.delete.is_some() {
+            return Some("DELETE".to_string());
+        }
+        if self.patch.is_some() {
+            return Some("PATCH".to_string());
+        }
         None
     }
 }
@@ -148,7 +158,13 @@ struct ProxymanRule {
 
 fn slugify(s: &str) -> String {
     s.chars()
-        .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c.to_ascii_lowercase() } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '-' || c == '_' {
+                c.to_ascii_lowercase()
+            } else {
+                '_'
+            }
+        })
         .collect::<String>()
         .trim_matches('_')
         .to_string()
@@ -190,14 +206,8 @@ pub fn import_proxyman(path: &Path) -> Result<HashMap<String, ProfileRaw>> {
         } else {
             // url component matching mode
             let from = pr.from_url_component.as_ref();
-            let host = from
-                .map(|f| &f.host)
-                .filter(|h| !h.is_empty())
-                .cloned();
-            let path_pat = from
-                .map(|f| &f.path)
-                .filter(|p| !p.is_empty())
-                .cloned();
+            let host = from.map(|f| &f.host).filter(|h| !h.is_empty()).cloned();
+            let path_pat = from.map(|f| &f.path).filter(|p| !p.is_empty()).cloned();
             MatchRule {
                 host,
                 path: path_pat,
