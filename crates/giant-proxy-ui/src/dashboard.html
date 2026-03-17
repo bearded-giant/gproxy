@@ -21,7 +21,7 @@
     </div>
     <nav id="tab-bar">
       <button class="tab active" data-tab="profiles">Profiles</button>
-      <button class="tab" data-tab="logs">Logs</button>
+      <button class="tab" data-tab="traffic">Traffic</button>
       <button class="tab" data-tab="settings">Settings</button>
     </nav>
 
@@ -36,27 +36,60 @@
       </div>
     </div>
 
-    <!-- Logs Tab -->
-    <div id="tab-logs" class="tab-panel">
+    <!-- Traffic Tab -->
+    <div id="tab-traffic" class="tab-panel">
       <div class="toolbar">
-        <input type="text" id="log-filter" class="search-input" placeholder="Filter logs...">
-        <button id="btn-pause-logs" class="action-btn">Pause</button>
-        <button id="btn-clear-logs" class="action-btn">Clear</button>
+        <button id="btn-toggle-capture" class="action-btn">Start Capture</button>
+        <input type="text" id="traffic-filter" class="search-input" placeholder="Filter by URL...">
+        <button id="btn-pause-traffic" class="action-btn">Pause</button>
+        <button id="btn-clear-traffic" class="action-btn">Clear</button>
+        <span id="traffic-count" class="traffic-count"></span>
       </div>
-      <div class="table-container">
-        <table id="logs-table">
-          <thead>
-            <tr>
-              <th class="col-time">Time</th>
-              <th class="col-method">Method</th>
-              <th>URL</th>
-              <th class="col-action">Action</th>
-              <th class="col-rule">Rule</th>
-            </tr>
-          </thead>
-          <tbody id="logs-tbody"></tbody>
-        </table>
-        <div id="logs-empty" class="empty-state">Log capture coming soon</div>
+      <div id="traffic-split" class="traffic-split">
+        <div class="traffic-list-pane">
+          <div class="table-container" id="traffic-table-container">
+            <table id="traffic-table">
+              <thead>
+                <tr>
+                  <th class="col-time">Time</th>
+                  <th class="col-method">Method</th>
+                  <th>URL</th>
+                  <th class="col-status">Status</th>
+                  <th class="col-duration">Duration</th>
+                  <th class="col-rule">Rule</th>
+                </tr>
+              </thead>
+              <tbody id="traffic-tbody"></tbody>
+            </table>
+            <div id="traffic-empty" class="empty-state">Enable capture to start recording traffic</div>
+          </div>
+        </div>
+        <div id="traffic-detail" class="traffic-detail-pane" style="display:none">
+          <div class="detail-header">
+            <div class="detail-summary">
+              <span id="detail-method" class="detail-method"></span>
+              <span id="detail-status" class="detail-status"></span>
+              <span id="detail-url" class="detail-url"></span>
+            </div>
+            <button id="btn-close-detail" class="modal-close">&times;</button>
+          </div>
+          <div class="detail-body">
+            <div class="detail-section">
+              <h4>Request Headers</h4>
+              <table id="detail-req-headers" class="headers-table">
+                <thead><tr><th>Key</th><th>Value</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <div class="detail-section">
+              <h4>Response Headers</h4>
+              <table id="detail-res-headers" class="headers-table">
+                <thead><tr><th>Key</th><th>Value</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 

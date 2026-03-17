@@ -1,6 +1,7 @@
 use crate::config::{self, AppConfig, ProfileMeta, ProfileRaw, RuleState};
 use crate::events::{EventBus, ProxyEvent};
 use crate::rules::Rule;
+use crate::traffic::{self, TrafficBuffer};
 use axum::{
     extract::{ws::WebSocket, Path, State, WebSocketUpgrade},
     http::StatusCode,
@@ -20,6 +21,7 @@ pub struct AppState {
     pub event_bus: Arc<EventBus>,
     pub started_at: Arc<RwLock<Option<chrono::DateTime<chrono::Utc>>>>,
     pub proxy_services: Arc<RwLock<Vec<String>>>,
+    pub traffic_buf: Arc<RwLock<TrafficBuffer>>,
 }
 
 pub fn routes(state: AppState) -> Router {
@@ -40,6 +42,11 @@ pub fn routes(state: AppState) -> Router {
         .route("/events", get(event_stream))
         .route("/logs", get(get_logs))
         .route("/env", get(get_env_snippet))
+        .route("/traffic", get(get_traffic))
+        .route("/traffic/{id}", get(get_traffic_entry))
+        .route("/traffic/toggle", post(toggle_traffic_capture))
+        .route("/traffic/clear", post(clear_traffic))
+        .route("/traffic/status", get(get_traffic_status))
         .with_state(state)
 }
 
@@ -463,6 +470,52 @@ async fn get_env_snippet(State(state): State<AppState>) -> impl IntoResponse {
     let snippet =
         crate::routing::generate_env_snippet(config.listen_port, &ca_path, &config.bypass_hosts);
     Json(json!({ "shell_snippet": snippet }))
+}
+
+async fn get_traffic(State(state): State<AppState>) -> impl IntoResponse {
+    let buf = state.traffic_buf.read().await;
+    Json(json!({ "entries": buf.list() }))
+}
+
+async fn get_traffic_entry(
+    State(state): State<AppState>,
+    Path(id): Path<u64>,
+) -> impl IntoResponse {
+    let buf = state.traffic_buf.read().await;
+    match buf.get(id) {
+        Some(entry) => Json(json!(entry)).into_response(),
+        None => (
+            StatusCode::NOT_FOUND,
+            Json(json!({"error": "entry not found"})),
+        )
+            .into_response(),
+    }
+}
+
+async fn toggle_traffic_capture(
+    State(state): State<AppState>,
+    body: Option<Json<serde_json::Value>>,
+) -> impl IntoResponse {
+    let enabled = body
+        .as_ref()
+        .and_then(|b| b.get("enabled"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(!traffic::is_capture_enabled());
+
+    traffic::set_capture_enabled(enabled);
+    state
+        .event_bus
+        .send(ProxyEvent::TrafficCaptureChanged { enabled });
+    Json(json!({"enabled": enabled}))
+}
+
+async fn clear_traffic(State(state): State<AppState>) -> impl IntoResponse {
+    state.traffic_buf.write().await.clear();
+    Json(json!({"ok": true}))
+}
+
+async fn get_traffic_status() -> impl IntoResponse {
+    Json(json!({"enabled": traffic::is_capture_enabled()}))
 }
 
 async fn persist_rules(state: &AppState) {

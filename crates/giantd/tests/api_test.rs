@@ -28,6 +28,7 @@ fn test_state() -> AppState {
         event_bus: Arc::new(EventBus::new(16)),
         started_at: Arc::new(RwLock::new(None)),
         proxy_services: Arc::new(RwLock::new(Vec::new())),
+        traffic_buf: Arc::new(RwLock::new(giantd::traffic::TrafficBuffer::new(100))),
     }
 }
 

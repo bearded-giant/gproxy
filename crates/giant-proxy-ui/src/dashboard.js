@@ -1,8 +1,10 @@
 const { invoke } = window.__TAURI__.core;
 const { listen } = window.__TAURI__.event;
 
-let logEntries = [];
-let logsPaused = false;
+let trafficEntries = [];
+let trafficPaused = false;
+let captureEnabled = false;
+let selectedTrafficId = null;
 let editingRuleId = null;
 let editingProfile = null;
 
@@ -16,6 +18,7 @@ async function init() {
   startEventStream();
   await refreshStatus();
   await loadProfilesTab();
+  await refreshCaptureStatus();
   setInterval(refreshStatus, 3000);
 
   // load app version into About section
@@ -82,6 +85,7 @@ function setupTabs() {
 
       switch (btn.dataset.tab) {
         case "profiles": loadProfilesTab(); break;
+        case "traffic": refreshCaptureStatus(); break;
         case "settings": loadSettingsTab(); break;
       }
     });
@@ -382,16 +386,51 @@ async function saveRule() {
   }
 }
 
-// -- logs --
+// -- traffic --
 
-function renderLogs() {
-  const tbody = document.getElementById("logs-tbody");
-  const empty = document.getElementById("logs-empty");
-  const filter = (document.getElementById("log-filter").value || "").toLowerCase();
+async function refreshCaptureStatus() {
+  try {
+    const resp = await invoke("get_traffic_status");
+    captureEnabled = resp.enabled;
+    updateCaptureButton();
+  } catch (_) {}
+}
 
-  const filtered = logEntries.filter(l =>
-    !filter || l.url.toLowerCase().includes(filter) || l.rule_id.toLowerCase().includes(filter)
+function updateCaptureButton() {
+  const btn = document.getElementById("btn-toggle-capture");
+  if (captureEnabled) {
+    btn.textContent = "Stop Capture";
+    btn.classList.add("capture-active");
+  } else {
+    btn.textContent = "Start Capture";
+    btn.classList.remove("capture-active");
+  }
+}
+
+async function toggleCapture() {
+  try {
+    const resp = await invoke("toggle_traffic_capture", { enabled: !captureEnabled });
+    captureEnabled = resp.enabled;
+    updateCaptureButton();
+    if (captureEnabled) {
+      document.getElementById("traffic-empty").textContent = "Waiting for traffic...";
+    }
+  } catch (e) {
+    alert("Toggle capture failed: " + e);
+  }
+}
+
+function renderTraffic() {
+  const tbody = document.getElementById("traffic-tbody");
+  const empty = document.getElementById("traffic-empty");
+  const countEl = document.getElementById("traffic-count");
+  const filter = (document.getElementById("traffic-filter").value || "").toLowerCase();
+
+  const filtered = trafficEntries.filter(e =>
+    !filter || e.url.toLowerCase().includes(filter) || (e.rule_id || "").toLowerCase().includes(filter)
   );
+
+  countEl.textContent = filtered.length + " request" + (filtered.length !== 1 ? "s" : "");
 
   if (!filtered.length) {
     tbody.innerHTML = "";
@@ -400,25 +439,85 @@ function renderLogs() {
   }
 
   empty.style.display = "none";
-  tbody.innerHTML = filtered.slice(0, 200).map(l => `
-    <tr class="${l.action === 'redirect' ? 'log-redirect' : ''}">
-      <td class="col-time mono">${l.time}</td>
-      <td class="col-method">${l.method || "GET"}</td>
-      <td class="mono">${l.url}</td>
-      <td class="col-action">${l.action || "pass"}</td>
-      <td class="col-rule">${l.rule_id}</td>
-    </tr>
-  `).join("");
+  tbody.innerHTML = filtered.slice(0, 500).map(e => {
+    const isRedirect = !!e.rule_id;
+    const selected = e.id === selectedTrafficId ? "selected" : "";
+    const statusClass = e.status >= 400 ? "status-error" : e.status >= 300 ? "status-redirect" : "status-ok";
+    return `
+    <tr class="${isRedirect ? 'log-redirect' : ''} ${selected}" data-traffic-id="${e.id}">
+      <td class="col-time mono">${e.timestamp || ""}</td>
+      <td class="col-method">${e.method || "GET"}</td>
+      <td class="mono traffic-url" title="${escapeHtml(e.url)}">${truncate(e.url, 80)}</td>
+      <td class="col-status ${statusClass}">${e.status || ""}</td>
+      <td class="col-duration mono">${e.duration_ms != null ? e.duration_ms + "ms" : ""}</td>
+      <td class="col-rule">${e.rule_id || "-"}</td>
+    </tr>`;
+  }).join("");
 }
 
-function toggleLogsPause() {
-  logsPaused = !logsPaused;
-  document.getElementById("btn-pause-logs").textContent = logsPaused ? "Resume" : "Pause";
+async function selectTrafficEntry(id) {
+  selectedTrafficId = id;
+  renderTraffic();
+
+  const detail = document.getElementById("traffic-detail");
+  detail.style.display = "flex";
+
+  // find in local cache first
+  let entry = trafficEntries.find(e => e.id === id);
+
+  // if we only have summary data, fetch full entry from daemon
+  if (entry && !entry.request_headers) {
+    try {
+      entry = await invoke("get_traffic_entry", { id });
+    } catch (_) {}
+  }
+
+  if (!entry) {
+    detail.style.display = "none";
+    return;
+  }
+
+  document.getElementById("detail-method").textContent = entry.method;
+  const statusEl = document.getElementById("detail-status");
+  statusEl.textContent = entry.status;
+  statusEl.className = "detail-status " + (entry.status >= 400 ? "status-error" : entry.status >= 300 ? "status-redirect" : "status-ok");
+  document.getElementById("detail-url").textContent = entry.url;
+
+  renderHeaders("detail-req-headers", entry.request_headers || []);
+  renderHeaders("detail-res-headers", entry.response_headers || []);
 }
 
-function clearLogs() {
-  logEntries = [];
-  renderLogs();
+function renderHeaders(tableId, headers) {
+  const tbody = document.querySelector("#" + tableId + " tbody");
+  if (!headers.length) {
+    tbody.innerHTML = '<tr><td colspan="2" class="empty-headers">No headers</td></tr>';
+    return;
+  }
+  tbody.innerHTML = headers.map(h => {
+    const [key, value] = Array.isArray(h) ? h : [h.key || h[0], h.value || h[1]];
+    return `<tr><td class="header-key">${escapeHtml(key)}</td><td class="header-value">${escapeHtml(value)}</td></tr>`;
+  }).join("");
+}
+
+function closeDetail() {
+  selectedTrafficId = null;
+  document.getElementById("traffic-detail").style.display = "none";
+  renderTraffic();
+}
+
+function toggleTrafficPause() {
+  trafficPaused = !trafficPaused;
+  document.getElementById("btn-pause-traffic").textContent = trafficPaused ? "Resume" : "Pause";
+}
+
+async function clearTraffic() {
+  trafficEntries = [];
+  selectedTrafficId = null;
+  document.getElementById("traffic-detail").style.display = "none";
+  try {
+    await invoke("clear_traffic");
+  } catch (_) {}
+  renderTraffic();
 }
 
 // -- settings --
@@ -470,32 +569,17 @@ async function startEventStream() {
   await listen("proxy-event", (event) => {
     const data = event.payload;
     switch (data.type) {
-      case "RequestMatched":
-        if (!logsPaused && data.data) {
-          const now = new Date();
-          logEntries.unshift({
-            time: now.toLocaleTimeString(),
-            url: data.data.url || "",
-            rule_id: data.data.rule_id || "",
-            method: data.data.method || "",
-            action: "redirect",
-          });
-          if (logEntries.length > 1000) logEntries.length = 1000;
-          renderLogs();
+      case "TrafficEntry":
+        if (!trafficPaused && data.data) {
+          trafficEntries.unshift(data.data);
+          if (trafficEntries.length > 1000) trafficEntries.length = 1000;
+          renderTraffic();
         }
         break;
-      case "RequestPassthrough":
-        if (!logsPaused && data.data) {
-          const now = new Date();
-          logEntries.unshift({
-            time: now.toLocaleTimeString(),
-            url: data.data.url || "",
-            rule_id: "-",
-            method: data.data.method || "",
-            action: "pass",
-          });
-          if (logEntries.length > 1000) logEntries.length = 1000;
-          renderLogs();
+      case "TrafficCaptureChanged":
+        if (data.data) {
+          captureEnabled = data.data.enabled;
+          updateCaptureButton();
         }
         break;
       case "RuleToggled":
@@ -616,9 +700,18 @@ function setupEventListeners() {
   document.getElementById("btn-modal-save").addEventListener("click", saveRule);
   document.getElementById("btn-modal-cancel").addEventListener("click", closeModal);
   document.getElementById("btn-modal-close").addEventListener("click", closeModal);
-  document.getElementById("log-filter").addEventListener("input", renderLogs);
-  document.getElementById("btn-pause-logs").addEventListener("click", toggleLogsPause);
-  document.getElementById("btn-clear-logs").addEventListener("click", clearLogs);
+  document.getElementById("traffic-filter").addEventListener("input", renderTraffic);
+  document.getElementById("btn-pause-traffic").addEventListener("click", toggleTrafficPause);
+  document.getElementById("btn-clear-traffic").addEventListener("click", clearTraffic);
+  document.getElementById("btn-toggle-capture").addEventListener("click", toggleCapture);
+  document.getElementById("btn-close-detail").addEventListener("click", closeDetail);
+
+  document.getElementById("traffic-tbody").addEventListener("click", (e) => {
+    const row = e.target.closest("tr[data-traffic-id]");
+    if (row) {
+      selectTrafficEntry(parseInt(row.dataset.trafficId));
+    }
+  });
   document.getElementById("btn-import-proxyman").addEventListener("click", importProxyman);
   document.getElementById("btn-check-update").addEventListener("click", checkForUpdate);
   document.getElementById("about-github-link").addEventListener("click", (e) => {

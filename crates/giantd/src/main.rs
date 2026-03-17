@@ -31,6 +31,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let event_bus = Arc::new(EventBus::new(256));
     let rules: Arc<RwLock<Vec<giantd::rules::Rule>>> = Arc::new(RwLock::new(Vec::new()));
+    let traffic_buf = Arc::new(RwLock::new(giantd::traffic::TrafficBuffer::new(1000)));
 
     let proxy_services: Arc<RwLock<Vec<String>>> = Arc::new(RwLock::new(Vec::new()));
     let state = AppState {
@@ -40,6 +41,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         event_bus: event_bus.clone(),
         started_at: Arc::new(RwLock::new(Some(chrono::Utc::now()))),
         proxy_services: proxy_services.clone(),
+        traffic_buf: traffic_buf.clone(),
     };
 
     // remove stale socket
@@ -93,10 +95,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     // proxy listener via hudsucker
-    let proxy_handler = ProxyHandler {
-        rules: rules.clone(),
-        event_tx: event_bus.sender(),
-    };
+    let proxy_handler = ProxyHandler::new(
+        rules.clone(),
+        event_bus.sender(),
+        traffic_buf.clone(),
+    );
 
     let _proxy_task = tokio::spawn(async move {
         let ca = match giantd::certs::CertAuthority::load(&config_dir) {
