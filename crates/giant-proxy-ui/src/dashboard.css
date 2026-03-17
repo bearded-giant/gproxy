@@ -680,7 +680,13 @@ tbody tr:hover {
   border-radius: 4px;
 }
 
-/* traffic viewer */
+/* traffic viewer -- allow text selection for copying */
+#tab-traffic {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+
 
 .traffic-split {
   display: flex;

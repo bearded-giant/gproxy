@@ -712,7 +712,6 @@ function setupEventListeners() {
       selectTrafficEntry(parseInt(row.dataset.trafficId));
     }
   });
-  document.getElementById("btn-import-proxyman").addEventListener("click", importProxyman);
   document.getElementById("btn-check-update").addEventListener("click", checkForUpdate);
   document.getElementById("about-github-link").addEventListener("click", (e) => {
     e.preventDefault();

@@ -73,3 +73,127 @@ pub fn set_capture_enabled(enabled: bool) {
 pub fn next_id() -> u64 {
     NEXT_REQUEST_ID.fetch_add(1, Ordering::Relaxed)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::events::TrafficRecord;
+
+    fn make_record(id: u64) -> TrafficRecord {
+        TrafficRecord {
+            id,
+            timestamp: format!("00:00:00.{:03}", id),
+            method: "GET".to_string(),
+            url: format!("https://example.com/{}", id),
+            status: 200,
+            duration_ms: 10,
+            rule_id: None,
+            request_headers: vec![],
+            response_headers: vec![],
+        }
+    }
+
+    #[test]
+    fn new_buffer_is_empty() {
+        let buf = TrafficBuffer::new(10);
+        assert!(buf.list().is_empty());
+        assert!(buf.get(1).is_none());
+    }
+
+    #[test]
+    fn push_and_list_returns_entry() {
+        let mut buf = TrafficBuffer::new(10);
+        buf.push(make_record(1));
+        let list = buf.list();
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0].id, 1);
+        assert_eq!(list[0].method, "GET");
+    }
+
+    #[test]
+    fn list_returns_entries_in_reverse_order() {
+        let mut buf = TrafficBuffer::new(10);
+        buf.push(make_record(1));
+        buf.push(make_record(2));
+        buf.push(make_record(3));
+        let list = buf.list();
+        assert_eq!(list[0].id, 3);
+        assert_eq!(list[1].id, 2);
+        assert_eq!(list[2].id, 1);
+    }
+
+    #[test]
+    fn get_returns_correct_entry() {
+        let mut buf = TrafficBuffer::new(10);
+        buf.push(make_record(1));
+        buf.push(make_record(2));
+        let entry = buf.get(2).unwrap();
+        assert_eq!(entry.id, 2);
+        assert_eq!(entry.url, "https://example.com/2");
+    }
+
+    #[test]
+    fn get_missing_id_returns_none() {
+        let mut buf = TrafficBuffer::new(10);
+        buf.push(make_record(1));
+        assert!(buf.get(999).is_none());
+    }
+
+    #[test]
+    fn clear_empties_buffer() {
+        let mut buf = TrafficBuffer::new(10);
+        buf.push(make_record(1));
+        buf.push(make_record(2));
+        buf.clear();
+        assert!(buf.list().is_empty());
+        assert!(buf.get(1).is_none());
+    }
+
+    #[test]
+    fn evicts_oldest_at_capacity() {
+        let mut buf = TrafficBuffer::new(3);
+        buf.push(make_record(1));
+        buf.push(make_record(2));
+        buf.push(make_record(3));
+        buf.push(make_record(4));
+        let list = buf.list();
+        assert_eq!(list.len(), 3);
+        // oldest (id=1) should be gone
+        assert!(buf.get(1).is_none());
+        assert!(buf.get(4).is_some());
+    }
+
+    #[test]
+    fn exact_capacity_does_not_evict() {
+        let mut buf = TrafficBuffer::new(3);
+        buf.push(make_record(1));
+        buf.push(make_record(2));
+        buf.push(make_record(3));
+        assert_eq!(buf.list().len(), 3);
+        assert!(buf.get(1).is_some());
+    }
+
+    #[test]
+    fn capacity_one_holds_latest() {
+        let mut buf = TrafficBuffer::new(1);
+        buf.push(make_record(1));
+        buf.push(make_record(2));
+        assert_eq!(buf.list().len(), 1);
+        assert_eq!(buf.list()[0].id, 2);
+    }
+
+    #[test]
+    fn capture_toggle() {
+        set_capture_enabled(true);
+        assert!(is_capture_enabled());
+        set_capture_enabled(false);
+        assert!(!is_capture_enabled());
+    }
+
+    #[test]
+    fn next_id_increments() {
+        let a = next_id();
+        let b = next_id();
+        assert_eq!(b, a + 1);
+    }
+}

@@ -20,7 +20,11 @@ enum Commands {
     /// start the proxy daemon
     Start,
     /// stop the proxy daemon
-    Stop,
+    Stop {
+        /// skip confirmation prompt
+        #[arg(short = 'y', long)]
+        force: bool,
+    },
     /// start proxy with a profile (starts daemon if needed)
     On {
         #[arg(long)]
@@ -181,7 +185,7 @@ async fn main() {
     match cli.command {
         Commands::Status => cmd_status(&client).await,
         Commands::Start => cmd_start(&client).await,
-        Commands::Stop => cmd_stop(&client).await,
+        Commands::Stop { force } => cmd_stop(&client, force).await,
         Commands::On { profile, rule } => {
             cmd_on(&client, profile, rule).await;
         }
@@ -817,7 +821,7 @@ fn print_traffic_detail(e: &serde_json::Value) {
 async fn cmd_daemon(action: DaemonAction, client: &DaemonClient) {
     match action {
         DaemonAction::Start => cmd_start(client).await,
-        DaemonAction::Stop => cmd_stop(client).await,
+        DaemonAction::Stop => cmd_stop(client, false).await,
         DaemonAction::Install => {
             let os = std::env::consts::OS;
             match os {
@@ -1125,11 +1129,33 @@ async fn cmd_start(client: &DaemonClient) {
     ensure_daemon(client).await;
 }
 
-async fn cmd_stop(client: &DaemonClient) {
+async fn cmd_stop(client: &DaemonClient, force: bool) {
     if !client.is_daemon_running() {
         println!("not running");
         return;
     }
+
+    if !force {
+        let proxy_active = client
+            .get("/status")
+            .await
+            .ok()
+            .and_then(|r| r.get("running")?.as_bool())
+            .unwrap_or(false);
+
+        if proxy_active {
+            eprint!("proxy is active -- stopping will close intercepted connections. continue? [y/N] ");
+            use std::io::Write;
+            std::io::stdout().flush().unwrap();
+            let mut input = String::new();
+            std::io::stdin().read_line(&mut input).unwrap();
+            if !input.trim().eq_ignore_ascii_case("y") {
+                println!("cancelled");
+                return;
+            }
+        }
+    }
+
     let _ = client.post("/stop", None).await;
     let config_dir = dirs::home_dir().unwrap().join(".giant-proxy");
     if let Ok(Some(pid)) = giantd::pid::read_pid(&config_dir) {

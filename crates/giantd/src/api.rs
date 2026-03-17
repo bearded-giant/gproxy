@@ -43,10 +43,10 @@ pub fn routes(state: AppState) -> Router {
         .route("/logs", get(get_logs))
         .route("/env", get(get_env_snippet))
         .route("/traffic", get(get_traffic))
-        .route("/traffic/{id}", get(get_traffic_entry))
         .route("/traffic/toggle", post(toggle_traffic_capture))
         .route("/traffic/clear", post(clear_traffic))
         .route("/traffic/status", get(get_traffic_status))
+        .route("/traffic/{id}", get(get_traffic_entry))
         .with_state(state)
 }
 
