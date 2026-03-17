@@ -19,3 +19,5 @@ http-body-util = "0.1"
 tower = "0.5"
 dirs = "6"
 giantd = { path = "../giantd" }
+tokio-tungstenite = "0.26"
+futures-util = "0.3"

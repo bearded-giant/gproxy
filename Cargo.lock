@@ -1549,6 +1549,7 @@ version = "0.2.6"
 dependencies = [
  "clap",
  "dirs 6.0.0",
+ "futures-util",
  "giantd",
  "http-body-util",
  "hyper",
@@ -1557,6 +1558,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+ "tokio-tungstenite 0.26.2",
  "tower",
 ]
 

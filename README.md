@@ -113,6 +113,14 @@ System proxy is restored automatically.
 | `giant-proxy rule list PROFILE` | List rules in a profile |
 | `giant-proxy rule add PROFILE --id ID ...` | Add a rule to a profile |
 | `giant-proxy rule toggle PROFILE RULE_ID` | Enable/disable a rule |
+| `giant-proxy traffic watch` | Live tail of proxied traffic (one line per request) |
+| `giant-proxy traffic watch -v` | Live tail with full request/response headers |
+| `giant-proxy traffic list` | List buffered traffic entries |
+| `giant-proxy traffic show ID` | Full detail for a single traffic entry |
+| `giant-proxy traffic on` | Enable traffic capture |
+| `giant-proxy traffic off` | Disable traffic capture |
+| `giant-proxy traffic clear` | Clear the traffic buffer |
+| `giant-proxy traffic status` | Check whether capture is enabled |
 | `giant-proxy daemon install` | Install as a system service (launchd/systemd) |
 | `giant-proxy daemon uninstall` | Remove the system service |
 | `giant-proxy uninstall` | Remove everything: service, CA cert, config directory |
