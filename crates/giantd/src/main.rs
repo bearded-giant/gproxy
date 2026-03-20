@@ -95,11 +95,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     // proxy listener via hudsucker
-    let proxy_handler = ProxyHandler::new(
-        rules.clone(),
-        event_bus.sender(),
-        traffic_buf.clone(),
-    );
+    let proxy_handler = ProxyHandler::new(rules.clone(), event_bus.sender(), traffic_buf.clone());
 
     let _proxy_task = tokio::spawn(async move {
         let ca = match giantd::certs::CertAuthority::load(&config_dir) {

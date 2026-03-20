@@ -647,14 +647,20 @@ async fn cmd_traffic(action: TrafficAction, client: &DaemonClient) {
 
     match action {
         TrafficAction::On => match client
-            .post("/traffic/toggle", Some(serde_json::json!({"enabled": true})))
+            .post(
+                "/traffic/toggle",
+                Some(serde_json::json!({"enabled": true})),
+            )
             .await
         {
             Ok(_) => println!("traffic capture enabled"),
             Err(e) => eprintln!("error: {}", e),
         },
         TrafficAction::Off => match client
-            .post("/traffic/toggle", Some(serde_json::json!({"enabled": false})))
+            .post(
+                "/traffic/toggle",
+                Some(serde_json::json!({"enabled": false})),
+            )
             .await
         {
             Ok(_) => println!("traffic capture disabled"),
@@ -670,10 +676,7 @@ async fn cmd_traffic(action: TrafficAction, client: &DaemonClient) {
                     .get("enabled")
                     .and_then(|v| v.as_bool())
                     .unwrap_or(false);
-                println!(
-                    "capture: {}",
-                    if enabled { "enabled" } else { "disabled" }
-                );
+                println!("capture: {}", if enabled { "enabled" } else { "disabled" });
             }
             Err(e) => eprintln!("error: {}", e),
         },
@@ -702,7 +705,10 @@ async fn cmd_traffic(action: TrafficAction, client: &DaemonClient) {
         TrafficAction::Watch { verbose } => {
             // enable capture if not already on
             let _ = client
-                .post("/traffic/toggle", Some(serde_json::json!({"enabled": true})))
+                .post(
+                    "/traffic/toggle",
+                    Some(serde_json::json!({"enabled": true})),
+                )
                 .await;
 
             match client.connect_events().await {
@@ -747,10 +753,7 @@ fn print_traffic_line(e: &serde_json::Value) {
     let url = e.get("url").and_then(|v| v.as_str()).unwrap_or("");
     let status = e.get("status").and_then(|v| v.as_u64()).unwrap_or(0);
     let duration = e.get("duration_ms").and_then(|v| v.as_u64()).unwrap_or(0);
-    let rule = e
-        .get("rule_id")
-        .and_then(|v| v.as_str())
-        .unwrap_or("-");
+    let rule = e.get("rule_id").and_then(|v| v.as_str()).unwrap_or("-");
 
     let status_str = if status >= 400 {
         format!("\x1b[31m{}\x1b[0m", status)
@@ -783,7 +786,12 @@ fn print_traffic_detail(e: &serde_json::Value) {
     let id = e.get("id").and_then(|v| v.as_u64()).unwrap_or(0);
 
     println!("\x1b[1m{} {}\x1b[0m  [id={}]", method, url, id);
-    println!("  status: {}  duration: {}ms  rule: {}", status, duration, rule.unwrap_or("-"));
+    println!(
+        "  status: {}  duration: {}ms  rule: {}",
+        status,
+        duration,
+        rule.unwrap_or("-")
+    );
 
     if let Some(headers) = e.get("request_headers").and_then(|v| v.as_array()) {
         println!("\n  \x1b[1mRequest Headers\x1b[0m");
@@ -1144,7 +1152,9 @@ async fn cmd_stop(client: &DaemonClient, force: bool) {
             .unwrap_or(false);
 
         if proxy_active {
-            eprint!("proxy is active -- stopping will close intercepted connections. continue? [y/N] ");
+            eprint!(
+                "proxy is active -- stopping will close intercepted connections. continue? [y/N] "
+            );
             use std::io::Write;
             std::io::stdout().flush().unwrap();
             let mut input = String::new();

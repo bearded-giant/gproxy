@@ -306,17 +306,21 @@ async fn get_traffic_empty() {
 #[tokio::test]
 async fn get_traffic_returns_entries() {
     let state = test_state();
-    state.traffic_buf.write().await.push(giantd::events::TrafficRecord {
-        id: 42,
-        timestamp: "12:00:00.000".to_string(),
-        method: "POST".to_string(),
-        url: "https://example.com/api".to_string(),
-        status: 201,
-        duration_ms: 55,
-        rule_id: Some("test_rule".to_string()),
-        request_headers: vec![("host".to_string(), "example.com".to_string())],
-        response_headers: vec![("content-type".to_string(), "application/json".to_string())],
-    });
+    state
+        .traffic_buf
+        .write()
+        .await
+        .push(giantd::events::TrafficRecord {
+            id: 42,
+            timestamp: "12:00:00.000".to_string(),
+            method: "POST".to_string(),
+            url: "https://example.com/api".to_string(),
+            status: 201,
+            duration_ms: 55,
+            rule_id: Some("test_rule".to_string()),
+            request_headers: vec![("host".to_string(), "example.com".to_string())],
+            response_headers: vec![("content-type".to_string(), "application/json".to_string())],
+        });
     let app = api::routes(state);
     let req = Request::builder()
         .uri("/traffic")
@@ -336,17 +340,21 @@ async fn get_traffic_returns_entries() {
 #[tokio::test]
 async fn get_traffic_entry_found() {
     let state = test_state();
-    state.traffic_buf.write().await.push(giantd::events::TrafficRecord {
-        id: 7,
-        timestamp: "12:00:00.000".to_string(),
-        method: "GET".to_string(),
-        url: "https://example.com".to_string(),
-        status: 200,
-        duration_ms: 10,
-        rule_id: None,
-        request_headers: vec![("accept".to_string(), "*/*".to_string())],
-        response_headers: vec![("server".to_string(), "nginx".to_string())],
-    });
+    state
+        .traffic_buf
+        .write()
+        .await
+        .push(giantd::events::TrafficRecord {
+            id: 7,
+            timestamp: "12:00:00.000".to_string(),
+            method: "GET".to_string(),
+            url: "https://example.com".to_string(),
+            status: 200,
+            duration_ms: 10,
+            rule_id: None,
+            request_headers: vec![("accept".to_string(), "*/*".to_string())],
+            response_headers: vec![("server".to_string(), "nginx".to_string())],
+        });
     let app = api::routes(state);
     let req = Request::builder()
         .uri("/traffic/7")
@@ -376,17 +384,21 @@ async fn get_traffic_entry_not_found() {
 #[tokio::test]
 async fn clear_traffic_empties_buffer() {
     let state = test_state();
-    state.traffic_buf.write().await.push(giantd::events::TrafficRecord {
-        id: 1,
-        timestamp: "12:00:00.000".to_string(),
-        method: "GET".to_string(),
-        url: "https://example.com".to_string(),
-        status: 200,
-        duration_ms: 5,
-        rule_id: None,
-        request_headers: vec![],
-        response_headers: vec![],
-    });
+    state
+        .traffic_buf
+        .write()
+        .await
+        .push(giantd::events::TrafficRecord {
+            id: 1,
+            timestamp: "12:00:00.000".to_string(),
+            method: "GET".to_string(),
+            url: "https://example.com".to_string(),
+            status: 200,
+            duration_ms: 5,
+            rule_id: None,
+            request_headers: vec![],
+            response_headers: vec![],
+        });
     let app = api::routes(state.clone());
 
     let req = Request::builder()

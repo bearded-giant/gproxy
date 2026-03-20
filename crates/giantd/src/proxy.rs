@@ -133,11 +133,7 @@ impl HttpHandler for ProxyHandler {
         req.into()
     }
 
-    async fn handle_response(
-        &mut self,
-        _ctx: &HttpContext,
-        res: Response<Body>,
-    ) -> Response<Body> {
+    async fn handle_response(&mut self, _ctx: &HttpContext, res: Response<Body>) -> Response<Body> {
         if let Some(pending) = self.pending.take() {
             let response_headers: Vec<(String, String)> = res
                 .headers()

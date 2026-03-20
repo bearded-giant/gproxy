@@ -373,9 +373,7 @@ async fn get_traffic_entry(id: u64) -> Result<serde_json::Value, String> {
 }
 
 #[tauri::command]
-async fn toggle_traffic_capture(
-    enabled: Option<bool>,
-) -> Result<serde_json::Value, String> {
+async fn toggle_traffic_capture(enabled: Option<bool>) -> Result<serde_json::Value, String> {
     let client = DaemonClient::new();
     let body = enabled.map(|v| serde_json::json!({"enabled": v}));
     client
