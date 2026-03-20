@@ -18,11 +18,16 @@ That's it. Everything is bundled in the app -- daemon, CLI, and cert setup. The 
 
 ## Install
 
-### Homebrew (macOS/Linux)
+### Homebrew (macOS)
+
+```
+brew install --cask bearded-giant/tap/giant-proxy-ui
+```
+
+This installs everything -- the menubar app, daemon, and CLI. For CLI-only (no GUI):
 
 ```
 brew install bearded-giant/tap/giant-proxy
-brew install --cask bearded-giant/tap/giant-proxy-ui   # optional menubar app
 ```
 
 ### Curl
@@ -200,7 +205,7 @@ scheme = "http"
 
 ## Menubar App
 
-The optional menubar app (`giant-proxy-ui`) gives you a system tray icon with:
+The menubar app (`giant-proxy-ui`) bundles the daemon and CLI alongside a system tray icon with:
 
 1. **Tray status** -- shows active profile and enabled rule names. Icon changes to indicate when the proxy is active.
 
@@ -208,7 +213,7 @@ The optional menubar app (`giant-proxy-ui`) gives you a system tray icon with:
 
 3. **Dashboard window** -- full rule editor with create/edit/delete, profile management with import/export and drag-to-reorder, live traffic log with match/passthrough highlighting, settings panel, and About section.
 
-Install it alongside the CLI:
+Install via Homebrew (includes daemon and CLI):
 
 ```
 brew install --cask bearded-giant/tap/giant-proxy-ui
