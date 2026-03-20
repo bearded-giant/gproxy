@@ -142,6 +142,20 @@ async fn list_profiles_local() -> Result<serde_json::Value, String> {
 }
 
 #[tauri::command]
+async fn create_profile(name: String) -> Result<serde_json::Value, String> {
+    let profile = giantd::config::ProfileRaw {
+        meta: giantd::config::ProfileMeta {
+            name: name.clone(),
+            description: None,
+            format_version: 1,
+        },
+        rules: vec![],
+    };
+    giantd::config::write_profile(&profile).map_err(|e| e.to_string())?;
+    Ok(serde_json::json!({"ok": true, "name": name}))
+}
+
+#[tauri::command]
 async fn rename_profile(old_name: String, new_name: String) -> Result<serde_json::Value, String> {
     giantd::config::rename_profile(&old_name, &new_name).map_err(|e| e.to_string())?;
     Ok(serde_json::json!({"ok": true}))
@@ -646,6 +660,7 @@ fn main() {
             start_daemon,
             stop_daemon,
             import_proxyman_auto,
+            create_profile,
             rename_profile,
             reorder_profiles,
             get_settings,

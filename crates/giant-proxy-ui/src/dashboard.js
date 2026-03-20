@@ -268,7 +268,20 @@ async function deleteRule(profileName, ruleId) {
   }
 }
 
-// -- rename / reorder --
+// -- create / rename / reorder --
+
+async function createNewProfile() {
+  const raw = prompt("New profile name:");
+  if (!raw) return;
+  const name = raw.toLowerCase().replace(/[^a-z0-9_-]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+  if (!name) { alert("Invalid name"); return; }
+  try {
+    await invoke("create_profile", { name });
+    await loadProfilesTab();
+  } catch (e) {
+    alert("Create profile failed: " + e);
+  }
+}
 
 async function renameProfilePrompt(oldName) {
   const newName = prompt("Rename profile '" + oldName + "' to:", oldName);
@@ -719,6 +732,7 @@ function setupEventListeners() {
   });
   document.getElementById("btn-start-stop").addEventListener("click", handleStartStop);
 
+  document.getElementById("btn-new-profile").addEventListener("click", createNewProfile);
   document.getElementById("btn-proxyman-auto").addEventListener("click", importProxymanAuto);
   document.getElementById("btn-save-settings").addEventListener("click", saveSettings);
 
