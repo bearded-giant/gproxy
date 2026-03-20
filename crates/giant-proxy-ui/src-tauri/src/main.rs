@@ -344,6 +344,51 @@ async fn import_proxyman_auto() -> Result<serde_json::Value, String> {
 }
 
 #[tauri::command]
+async fn get_traffic() -> Result<serde_json::Value, String> {
+    let client = DaemonClient::new();
+    client.get("/traffic").await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn get_traffic_entry(id: u64) -> Result<serde_json::Value, String> {
+    let client = DaemonClient::new();
+    client
+        .get(&format!("/traffic/{}", id))
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn toggle_traffic_capture(
+    enabled: Option<bool>,
+) -> Result<serde_json::Value, String> {
+    let client = DaemonClient::new();
+    let body = enabled.map(|v| serde_json::json!({"enabled": v}));
+    client
+        .post("/traffic/toggle", body)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn clear_traffic() -> Result<serde_json::Value, String> {
+    let client = DaemonClient::new();
+    client
+        .post("/traffic/clear", None)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn get_traffic_status() -> Result<serde_json::Value, String> {
+    let client = DaemonClient::new();
+    client
+        .get("/traffic/status")
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 async fn open_dashboard(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("dashboard") {
         window.show().map_err(|e| e.to_string())?;
@@ -606,6 +651,11 @@ fn main() {
             get_settings,
             save_settings,
             check_for_update,
+            get_traffic,
+            get_traffic_entry,
+            toggle_traffic_capture,
+            clear_traffic,
+            get_traffic_status,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

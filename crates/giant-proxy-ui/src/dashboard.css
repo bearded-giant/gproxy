@@ -680,12 +680,210 @@ tbody tr:hover {
   border-radius: 4px;
 }
 
+/* traffic viewer -- allow text selection for copying */
+#tab-traffic {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+
+
+.traffic-split {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+
+.traffic-list-pane {
+  flex: 1;
+  min-height: 120px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.traffic-list-pane .table-container {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.traffic-detail-pane {
+  flex-direction: column;
+  height: 45%;
+  min-height: 200px;
+  border-top: 2px solid #313244;
+  overflow: hidden;
+}
+
+.detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background: #181825;
+  border-bottom: 1px solid #313244;
+  gap: 12px;
+}
+
+.detail-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  flex: 1;
+}
+
+.detail-method {
+  font-weight: 600;
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: #313244;
+  color: #89b4fa;
+  flex-shrink: 0;
+}
+
+.detail-status {
+  font-weight: 600;
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.detail-url {
+  font-family: "SF Mono", "Fira Code", monospace;
+  font-size: 11px;
+  color: #a6adc8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.detail-section {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+
+.detail-section + .detail-section {
+  border-left: 1px solid #313244;
+}
+
+.detail-section h4 {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #6c7086;
+  padding: 4px 12px 6px;
+  font-weight: 500;
+}
+
+.headers-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.headers-table thead {
+  display: none;
+}
+
+.headers-table td {
+  padding: 3px 12px;
+  border-bottom: 1px solid rgba(49, 50, 68, 0.5);
+  vertical-align: top;
+}
+
+.header-key {
+  font-weight: 500;
+  color: #89b4fa;
+  white-space: nowrap;
+  width: 160px;
+  font-family: "SF Mono", "Fira Code", monospace;
+  font-size: 11px;
+}
+
+.header-value {
+  color: #cdd6f4;
+  word-break: break-all;
+  font-family: "SF Mono", "Fira Code", monospace;
+  font-size: 11px;
+}
+
+.empty-headers {
+  color: #6c7086;
+  font-style: italic;
+}
+
+/* traffic table tweaks */
+
+.col-status {
+  width: 55px;
+  font-weight: 600;
+  font-family: "SF Mono", "Fira Code", monospace;
+  font-size: 12px;
+}
+
+.col-duration {
+  width: 70px;
+  font-size: 12px;
+  color: #6c7086;
+}
+
+.status-ok { color: #a6e3a1; }
+.status-redirect { color: #f9e2af; }
+.status-error { color: #f38ba8; }
+
+.traffic-url {
+  max-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#traffic-table tbody tr {
+  cursor: pointer;
+}
+
+#traffic-table tbody tr.selected {
+  background: rgba(137, 180, 250, 0.1);
+}
+
 .log-redirect {
   background: rgba(166, 227, 161, 0.05);
 }
 
 .log-redirect td {
   color: #a6e3a1;
+}
+
+.traffic-count {
+  font-size: 11px;
+  color: #6c7086;
+  white-space: nowrap;
+}
+
+.capture-active {
+  background: #a6e3a1 !important;
+  color: #1e1e2e !important;
+  border-color: #a6e3a1 !important;
+}
+
+.capture-active:hover:not(:disabled) {
+  background: #94d98a !important;
+}
+
+.action-btn.small.danger {
+  color: #f38ba8;
+  border-color: #f38ba8;
 }
 
 @media (prefers-color-scheme: light) {
@@ -843,6 +1041,54 @@ tbody tr:hover {
 
   .modal-footer {
     border-color: #ccd0da;
+  }
+
+  .traffic-detail-pane {
+    border-top-color: #ccd0da;
+  }
+
+  .detail-header {
+    background: #e6e9ef;
+    border-color: #ccd0da;
+  }
+
+  .detail-method {
+    background: #ccd0da;
+    color: #1e66f5;
+  }
+
+  .detail-section + .detail-section {
+    border-color: #ccd0da;
+  }
+
+  .detail-section h4 {
+    color: #7c7f93;
+  }
+
+  .headers-table td {
+    border-color: rgba(204, 208, 218, 0.5);
+  }
+
+  .header-key {
+    color: #1e66f5;
+  }
+
+  .header-value {
+    color: #4c4f69;
+  }
+
+  .status-ok { color: #40a02b; }
+  .status-redirect { color: #df8e1d; }
+  .status-error { color: #d20f39; }
+
+  #traffic-table tbody tr.selected {
+    background: rgba(30, 102, 245, 0.08);
+  }
+
+  .capture-active {
+    background: #40a02b !important;
+    color: #eff1f5 !important;
+    border-color: #40a02b !important;
   }
 
   .table-container::-webkit-scrollbar-thumb,

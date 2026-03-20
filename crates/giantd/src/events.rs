@@ -27,6 +27,23 @@ pub enum ProxyEvent {
     },
     ProxyStopped,
     ConfigChanged,
+    TrafficEntry(TrafficRecord),
+    TrafficCaptureChanged {
+        enabled: bool,
+    },
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct TrafficRecord {
+    pub id: u64,
+    pub timestamp: String,
+    pub method: String,
+    pub url: String,
+    pub status: u16,
+    pub duration_ms: u64,
+    pub rule_id: Option<String>,
+    pub request_headers: Vec<(String, String)>,
+    pub response_headers: Vec<(String, String)>,
 }
 
 pub struct EventBus {

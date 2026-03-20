@@ -1,5 +1,6 @@
-use crate::events::ProxyEvent;
+use crate::events::{ProxyEvent, TrafficRecord};
 use crate::rules::Rule;
+use crate::traffic;
 use hudsucker::{
     hyper::{Request, Response},
     Body, HttpContext, HttpHandler, RequestOrResponse,
@@ -11,6 +12,23 @@ use tokio::sync::{broadcast, RwLock};
 pub struct ProxyHandler {
     pub rules: Arc<RwLock<Vec<Rule>>>,
     pub event_tx: broadcast::Sender<ProxyEvent>,
+    pub traffic_buf: Arc<RwLock<traffic::TrafficBuffer>>,
+    pending: Option<PendingTraffic>,
+}
+
+impl ProxyHandler {
+    pub fn new(
+        rules: Arc<RwLock<Vec<Rule>>>,
+        event_tx: broadcast::Sender<ProxyEvent>,
+        traffic_buf: Arc<RwLock<traffic::TrafficBuffer>>,
+    ) -> Self {
+        Self {
+            rules,
+            event_tx,
+            traffic_buf,
+            pending: None,
+        }
+    }
 }
 
 impl HttpHandler for ProxyHandler {
@@ -22,7 +40,6 @@ impl HttpHandler for ProxyHandler {
         let rules = self.rules.read().await;
         let method = req.method().clone();
 
-        // reconstruct full url for logging
         let display_url = if req.uri().scheme().is_some() {
             req.uri().to_string()
         } else {
@@ -40,6 +57,17 @@ impl HttpHandler for ProxyHandler {
         };
 
         tracing::debug!(uri = %req.uri(), host = ?req.headers().get("host"), url = %display_url, "incoming request");
+
+        let capturing = traffic::is_capture_enabled();
+
+        let req_headers: Vec<(String, String)> = if capturing {
+            req.headers()
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.to_str().unwrap_or("<binary>").to_string()))
+                .collect()
+        } else {
+            Vec::new()
+        };
 
         for rule in rules.iter().filter(|r| r.enabled) {
             if rule.matches(req.uri(), req.headers(), &method) {
@@ -65,23 +93,85 @@ impl HttpHandler for ProxyHandler {
 
                 let _ = self.event_tx.send(ProxyEvent::RequestMatched {
                     rule_id: rule.id.clone(),
-                    url: display_url,
+                    url: display_url.clone(),
                     method: method.to_string(),
                 });
+
+                if capturing {
+                    self.pending = Some(PendingTraffic {
+                        id: traffic::next_id(),
+                        timestamp: chrono::Utc::now().format("%H:%M:%S%.3f").to_string(),
+                        method: method.to_string(),
+                        url: display_url,
+                        rule_id: Some(rule.id.clone()),
+                        request_headers: req_headers,
+                        started_at: std::time::Instant::now(),
+                    });
+                }
 
                 return Request::from_parts(parts, body).into();
             }
         }
 
         let _ = self.event_tx.send(ProxyEvent::RequestPassthrough {
-            url: display_url,
+            url: display_url.clone(),
             method: method.to_string(),
         });
+
+        if capturing {
+            self.pending = Some(PendingTraffic {
+                id: traffic::next_id(),
+                timestamp: chrono::Utc::now().format("%H:%M:%S%.3f").to_string(),
+                method: method.to_string(),
+                url: display_url,
+                rule_id: None,
+                request_headers: req_headers,
+                started_at: std::time::Instant::now(),
+            });
+        }
 
         req.into()
     }
 
-    async fn handle_response(&mut self, _ctx: &HttpContext, res: Response<Body>) -> Response<Body> {
+    async fn handle_response(
+        &mut self,
+        _ctx: &HttpContext,
+        res: Response<Body>,
+    ) -> Response<Body> {
+        if let Some(pending) = self.pending.take() {
+            let response_headers: Vec<(String, String)> = res
+                .headers()
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.to_str().unwrap_or("<binary>").to_string()))
+                .collect();
+
+            let record = TrafficRecord {
+                id: pending.id,
+                timestamp: pending.timestamp,
+                method: pending.method,
+                url: pending.url,
+                status: res.status().as_u16(),
+                duration_ms: pending.started_at.elapsed().as_millis() as u64,
+                rule_id: pending.rule_id,
+                request_headers: pending.request_headers,
+                response_headers,
+            };
+
+            let _ = self.event_tx.send(ProxyEvent::TrafficEntry(record.clone()));
+            self.traffic_buf.write().await.push(record);
+        }
+
         res
     }
+}
+
+#[derive(Debug, Clone)]
+struct PendingTraffic {
+    id: u64,
+    timestamp: String,
+    method: String,
+    url: String,
+    rule_id: Option<String>,
+    request_headers: Vec<(String, String)>,
+    started_at: std::time::Instant,
 }

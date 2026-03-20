@@ -28,6 +28,7 @@ fn test_state() -> AppState {
         event_bus: Arc::new(EventBus::new(16)),
         started_at: Arc::new(RwLock::new(None)),
         proxy_services: Arc::new(RwLock::new(Vec::new())),
+        traffic_buf: Arc::new(RwLock::new(giantd::traffic::TrafficBuffer::new(100))),
     }
 }
 
@@ -237,4 +238,183 @@ async fn delete_nonexistent_rule_returns_404() {
 
     let (status, _) = response_json(app.oneshot(req).await.unwrap()).await;
     assert_eq!(status, 404);
+}
+
+// -- traffic API --
+
+#[tokio::test]
+async fn traffic_status_returns_boolean() {
+    let app = test_app();
+    let req = Request::builder()
+        .uri("/traffic/status")
+        .body(Body::empty())
+        .unwrap();
+
+    let (status, json) = response_json(app.oneshot(req).await.unwrap()).await;
+    assert_eq!(status, 200);
+    // value depends on other concurrent tests, just verify shape
+    assert!(json["enabled"].is_boolean());
+}
+
+#[tokio::test]
+async fn toggle_capture_explicit_true() {
+    giantd::traffic::set_capture_enabled(false);
+    let app = test_app();
+    let body = serde_json::json!({"enabled": true});
+    let req = Request::builder()
+        .method("POST")
+        .uri("/traffic/toggle")
+        .header("content-type", "application/json")
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+
+    let (status, json) = response_json(app.oneshot(req).await.unwrap()).await;
+    assert_eq!(status, 200);
+    assert_eq!(json["enabled"], true);
+}
+
+#[tokio::test]
+async fn toggle_capture_explicit_false() {
+    giantd::traffic::set_capture_enabled(true);
+    let app = test_app();
+    let body = serde_json::json!({"enabled": false});
+    let req = Request::builder()
+        .method("POST")
+        .uri("/traffic/toggle")
+        .header("content-type", "application/json")
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+
+    let (status, json) = response_json(app.oneshot(req).await.unwrap()).await;
+    assert_eq!(status, 200);
+    assert_eq!(json["enabled"], false);
+}
+
+#[tokio::test]
+async fn get_traffic_empty() {
+    let app = test_app();
+    let req = Request::builder()
+        .uri("/traffic")
+        .body(Body::empty())
+        .unwrap();
+
+    let (status, json) = response_json(app.oneshot(req).await.unwrap()).await;
+    assert_eq!(status, 200);
+    assert!(json["entries"].as_array().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn get_traffic_returns_entries() {
+    let state = test_state();
+    state.traffic_buf.write().await.push(giantd::events::TrafficRecord {
+        id: 42,
+        timestamp: "12:00:00.000".to_string(),
+        method: "POST".to_string(),
+        url: "https://example.com/api".to_string(),
+        status: 201,
+        duration_ms: 55,
+        rule_id: Some("test_rule".to_string()),
+        request_headers: vec![("host".to_string(), "example.com".to_string())],
+        response_headers: vec![("content-type".to_string(), "application/json".to_string())],
+    });
+    let app = api::routes(state);
+    let req = Request::builder()
+        .uri("/traffic")
+        .body(Body::empty())
+        .unwrap();
+
+    let (status, json) = response_json(app.oneshot(req).await.unwrap()).await;
+    assert_eq!(status, 200);
+    let entries = json["entries"].as_array().unwrap();
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0]["id"], 42);
+    assert_eq!(entries[0]["method"], "POST");
+    assert_eq!(entries[0]["status"], 201);
+    assert_eq!(entries[0]["rule_id"], "test_rule");
+}
+
+#[tokio::test]
+async fn get_traffic_entry_found() {
+    let state = test_state();
+    state.traffic_buf.write().await.push(giantd::events::TrafficRecord {
+        id: 7,
+        timestamp: "12:00:00.000".to_string(),
+        method: "GET".to_string(),
+        url: "https://example.com".to_string(),
+        status: 200,
+        duration_ms: 10,
+        rule_id: None,
+        request_headers: vec![("accept".to_string(), "*/*".to_string())],
+        response_headers: vec![("server".to_string(), "nginx".to_string())],
+    });
+    let app = api::routes(state);
+    let req = Request::builder()
+        .uri("/traffic/7")
+        .body(Body::empty())
+        .unwrap();
+
+    let (status, json) = response_json(app.oneshot(req).await.unwrap()).await;
+    assert_eq!(status, 200);
+    assert_eq!(json["id"], 7);
+    assert!(json["request_headers"].as_array().is_some());
+    assert!(json["response_headers"].as_array().is_some());
+}
+
+#[tokio::test]
+async fn get_traffic_entry_not_found() {
+    let app = test_app();
+    let req = Request::builder()
+        .uri("/traffic/99999")
+        .body(Body::empty())
+        .unwrap();
+
+    let (status, json) = response_json(app.oneshot(req).await.unwrap()).await;
+    assert_eq!(status, 404);
+    assert!(json["error"].as_str().is_some());
+}
+
+#[tokio::test]
+async fn clear_traffic_empties_buffer() {
+    let state = test_state();
+    state.traffic_buf.write().await.push(giantd::events::TrafficRecord {
+        id: 1,
+        timestamp: "12:00:00.000".to_string(),
+        method: "GET".to_string(),
+        url: "https://example.com".to_string(),
+        status: 200,
+        duration_ms: 5,
+        rule_id: None,
+        request_headers: vec![],
+        response_headers: vec![],
+    });
+    let app = api::routes(state.clone());
+
+    let req = Request::builder()
+        .method("POST")
+        .uri("/traffic/clear")
+        .body(Body::empty())
+        .unwrap();
+    let (status, json) = response_json(app.clone().oneshot(req).await.unwrap()).await;
+    assert_eq!(status, 200);
+    assert_eq!(json["ok"], true);
+
+    let req = Request::builder()
+        .uri("/traffic")
+        .body(Body::empty())
+        .unwrap();
+    let (_, json) = response_json(app.oneshot(req).await.unwrap()).await;
+    assert!(json["entries"].as_array().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn traffic_status_route_not_shadowed_by_id_param() {
+    let app = test_app();
+    let req = Request::builder()
+        .uri("/traffic/status")
+        .body(Body::empty())
+        .unwrap();
+
+    let (status, json) = response_json(app.oneshot(req).await.unwrap()).await;
+    assert_eq!(status, 200);
+    assert!(json.get("enabled").is_some());
 }

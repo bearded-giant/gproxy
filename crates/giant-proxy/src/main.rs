@@ -20,7 +20,11 @@ enum Commands {
     /// start the proxy daemon
     Start,
     /// stop the proxy daemon
-    Stop,
+    Stop {
+        /// skip confirmation prompt
+        #[arg(short = 'y', long)]
+        force: bool,
+    },
     /// start proxy with a profile (starts daemon if needed)
     On {
         #[arg(long)]
@@ -42,6 +46,11 @@ enum Commands {
     Rule {
         #[command(subcommand)]
         action: RuleAction,
+    },
+    /// inspect proxied traffic
+    Traffic {
+        #[command(subcommand)]
+        action: TrafficAction,
     },
     /// manage the daemon process (alias: start/stop)
     Daemon {
@@ -131,6 +140,32 @@ enum RuleAction {
 }
 
 #[derive(Subcommand)]
+enum TrafficAction {
+    /// live tail of proxied traffic
+    Watch {
+        /// show request and response headers
+        #[arg(short, long)]
+        verbose: bool,
+    },
+    /// list buffered traffic entries
+    #[command(alias = "ls")]
+    List,
+    /// show full detail for a traffic entry
+    Show {
+        /// traffic entry ID
+        id: u64,
+    },
+    /// enable traffic capture
+    On,
+    /// disable traffic capture
+    Off,
+    /// clear the traffic buffer
+    Clear,
+    /// show capture status
+    Status,
+}
+
+#[derive(Subcommand)]
 enum DaemonAction {
     /// start the daemon
     Start,
@@ -150,7 +185,7 @@ async fn main() {
     match cli.command {
         Commands::Status => cmd_status(&client).await,
         Commands::Start => cmd_start(&client).await,
-        Commands::Stop => cmd_stop(&client).await,
+        Commands::Stop { force } => cmd_stop(&client, force).await,
         Commands::On { profile, rule } => {
             cmd_on(&client, profile, rule).await;
         }
@@ -167,6 +202,7 @@ async fn main() {
         Commands::Env => cmd_env(&client).await,
         Commands::Profile { action } => cmd_profile(action),
         Commands::Rule { action } => cmd_rule(action),
+        Commands::Traffic { action } => cmd_traffic(action, &client).await,
         Commands::Daemon { action } => cmd_daemon(action, &client).await,
         Commands::Doctor { .. } => cmd_doctor(&client),
         Commands::Init => cmd_init(),
@@ -601,12 +637,191 @@ fn load_profile_raw(name: &str) -> Result<giantd::config::ProfileRaw, String> {
     })
 }
 
+// -- traffic --
+
+async fn cmd_traffic(action: TrafficAction, client: &DaemonClient) {
+    if !client.is_daemon_running() {
+        eprintln!("daemon not running");
+        std::process::exit(1);
+    }
+
+    match action {
+        TrafficAction::On => match client
+            .post("/traffic/toggle", Some(serde_json::json!({"enabled": true})))
+            .await
+        {
+            Ok(_) => println!("traffic capture enabled"),
+            Err(e) => eprintln!("error: {}", e),
+        },
+        TrafficAction::Off => match client
+            .post("/traffic/toggle", Some(serde_json::json!({"enabled": false})))
+            .await
+        {
+            Ok(_) => println!("traffic capture disabled"),
+            Err(e) => eprintln!("error: {}", e),
+        },
+        TrafficAction::Clear => match client.post("/traffic/clear", None).await {
+            Ok(_) => println!("traffic buffer cleared"),
+            Err(e) => eprintln!("error: {}", e),
+        },
+        TrafficAction::Status => match client.get("/traffic/status").await {
+            Ok(resp) => {
+                let enabled = resp
+                    .get("enabled")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false);
+                println!(
+                    "capture: {}",
+                    if enabled { "enabled" } else { "disabled" }
+                );
+            }
+            Err(e) => eprintln!("error: {}", e),
+        },
+        TrafficAction::List => match client.get("/traffic").await {
+            Ok(resp) => {
+                let entries = resp
+                    .get("entries")
+                    .and_then(|v| v.as_array())
+                    .cloned()
+                    .unwrap_or_default();
+                if entries.is_empty() {
+                    println!("no traffic captured (is capture enabled?)");
+                    return;
+                }
+                for e in &entries {
+                    print_traffic_line(e);
+                }
+                println!("({} entries)", entries.len());
+            }
+            Err(e) => eprintln!("error: {}", e),
+        },
+        TrafficAction::Show { id } => match client.get(&format!("/traffic/{}", id)).await {
+            Ok(entry) => print_traffic_detail(&entry),
+            Err(e) => eprintln!("error: {}", e),
+        },
+        TrafficAction::Watch { verbose } => {
+            // enable capture if not already on
+            let _ = client
+                .post("/traffic/toggle", Some(serde_json::json!({"enabled": true})))
+                .await;
+
+            match client.connect_events().await {
+                Ok(ws) => {
+                    use futures_util::StreamExt;
+                    eprintln!("watching traffic (ctrl-c to stop)...");
+                    let mut ws = ws;
+                    while let Some(msg) = ws.next().await {
+                        match msg {
+                            Ok(tokio_tungstenite::tungstenite::Message::Text(text)) => {
+                                if let Ok(event) =
+                                    serde_json::from_str::<serde_json::Value>(text.as_ref())
+                                {
+                                    if event.get("type").and_then(|t| t.as_str())
+                                        == Some("TrafficEntry")
+                                    {
+                                        if let Some(data) = event.get("data") {
+                                            if verbose {
+                                                print_traffic_detail(data);
+                                                println!();
+                                            } else {
+                                                print_traffic_line(data);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            Err(_) => break,
+                            _ => {}
+                        }
+                    }
+                }
+                Err(e) => eprintln!("failed to connect to event stream: {}", e),
+            }
+        }
+    }
+}
+
+fn print_traffic_line(e: &serde_json::Value) {
+    let time = e.get("timestamp").and_then(|v| v.as_str()).unwrap_or("");
+    let method = e.get("method").and_then(|v| v.as_str()).unwrap_or("???");
+    let url = e.get("url").and_then(|v| v.as_str()).unwrap_or("");
+    let status = e.get("status").and_then(|v| v.as_u64()).unwrap_or(0);
+    let duration = e.get("duration_ms").and_then(|v| v.as_u64()).unwrap_or(0);
+    let rule = e
+        .get("rule_id")
+        .and_then(|v| v.as_str())
+        .unwrap_or("-");
+
+    let status_str = if status >= 400 {
+        format!("\x1b[31m{}\x1b[0m", status)
+    } else if status >= 300 {
+        format!("\x1b[33m{}\x1b[0m", status)
+    } else if status > 0 {
+        format!("\x1b[32m{}\x1b[0m", status)
+    } else {
+        "---".to_string()
+    };
+
+    let rule_str = if rule != "-" {
+        format!(" \x1b[36m[{}]\x1b[0m", rule)
+    } else {
+        String::new()
+    };
+
+    println!(
+        "{} {:>4} {} {} {}ms{}",
+        time, method, status_str, url, duration, rule_str
+    );
+}
+
+fn print_traffic_detail(e: &serde_json::Value) {
+    let method = e.get("method").and_then(|v| v.as_str()).unwrap_or("???");
+    let url = e.get("url").and_then(|v| v.as_str()).unwrap_or("");
+    let status = e.get("status").and_then(|v| v.as_u64()).unwrap_or(0);
+    let duration = e.get("duration_ms").and_then(|v| v.as_u64()).unwrap_or(0);
+    let rule = e.get("rule_id").and_then(|v| v.as_str());
+    let id = e.get("id").and_then(|v| v.as_u64()).unwrap_or(0);
+
+    println!("\x1b[1m{} {}\x1b[0m  [id={}]", method, url, id);
+    println!("  status: {}  duration: {}ms  rule: {}", status, duration, rule.unwrap_or("-"));
+
+    if let Some(headers) = e.get("request_headers").and_then(|v| v.as_array()) {
+        println!("\n  \x1b[1mRequest Headers\x1b[0m");
+        for h in headers {
+            if let Some(arr) = h.as_array() {
+                if arr.len() == 2 {
+                    println!(
+                        "  \x1b[36m{}\x1b[0m: {}",
+                        arr[0].as_str().unwrap_or(""),
+                        arr[1].as_str().unwrap_or("")
+                    );
+                }
+            }
+        }
+    }
+
+    if let Some(headers) = e.get("response_headers").and_then(|v| v.as_array()) {
+        println!("\n  \x1b[1mResponse Headers\x1b[0m");
+        for h in headers {
+            if let Some(arr) = h.as_array() {
+                if arr.len() == 2 {
+                    println!(
+                        "  \x1b[36m{}\x1b[0m: {}",
+                        arr[0].as_str().unwrap_or(""),
+                        arr[1].as_str().unwrap_or("")
+                    );
+                }
+            }
+        }
+    }
+}
+
 // -- daemon --
 
 async fn cmd_daemon(action: DaemonAction, client: &DaemonClient) {
     match action {
         DaemonAction::Start => cmd_start(client).await,
-        DaemonAction::Stop => cmd_stop(client).await,
+        DaemonAction::Stop => cmd_stop(client, false).await,
         DaemonAction::Install => {
             let os = std::env::consts::OS;
             match os {
@@ -914,11 +1129,33 @@ async fn cmd_start(client: &DaemonClient) {
     ensure_daemon(client).await;
 }
 
-async fn cmd_stop(client: &DaemonClient) {
+async fn cmd_stop(client: &DaemonClient, force: bool) {
     if !client.is_daemon_running() {
         println!("not running");
         return;
     }
+
+    if !force {
+        let proxy_active = client
+            .get("/status")
+            .await
+            .ok()
+            .and_then(|r| r.get("running")?.as_bool())
+            .unwrap_or(false);
+
+        if proxy_active {
+            eprint!("proxy is active -- stopping will close intercepted connections. continue? [y/N] ");
+            use std::io::Write;
+            std::io::stdout().flush().unwrap();
+            let mut input = String::new();
+            std::io::stdin().read_line(&mut input).unwrap();
+            if !input.trim().eq_ignore_ascii_case("y") {
+                println!("cancelled");
+                return;
+            }
+        }
+    }
+
     let _ = client.post("/stop", None).await;
     let config_dir = dirs::home_dir().unwrap().join(".giant-proxy");
     if let Ok(Some(pid)) = giantd::pid::read_pid(&config_dir) {

@@ -104,7 +104,39 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
                 "quit" => {
-                    app.exit(0);
+                    let app_handle = app.clone();
+                    tauri::async_runtime::spawn(async move {
+                        let client = DaemonClient::new();
+                        let proxy_active = if client.is_daemon_running() {
+                            client
+                                .get("/status")
+                                .await
+                                .ok()
+                                .and_then(|r| r.get("running")?.as_bool())
+                                .unwrap_or(false)
+                        } else {
+                            false
+                        };
+
+                        if proxy_active {
+                            let (tx, rx) = std::sync::mpsc::channel();
+                            let ah = app_handle.clone();
+                            let _ = app_handle.run_on_main_thread(move || {
+                                use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
+                                let confirmed = ah.dialog()
+                                    .message("The proxy is currently active. Quitting will stop the proxy and close all intercepted connections.")
+                                    .title("Quit Giant Proxy?")
+                                    .buttons(MessageDialogButtons::OkCancelCustom("Quit".into(), "Cancel".into()))
+                                    .blocking_show();
+                                let _ = tx.send(confirmed);
+                            });
+                            if rx.recv().unwrap_or(false) {
+                                shutdown_and_exit(&client, &app_handle).await;
+                            }
+                        } else {
+                            shutdown_and_exit(&client, &app_handle).await;
+                        }
+                    });
                 }
                 _ if id.starts_with("profile_") => {
                     if let Some(profile) = id.strip_prefix("profile_") {
@@ -170,6 +202,19 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     });
 
     Ok(())
+}
+
+async fn shutdown_and_exit(client: &DaemonClient, app: &tauri::AppHandle) {
+    if client.is_daemon_running() {
+        let _ = client.post("/stop", None).await;
+        let config_dir = dirs::home_dir().expect("home dir").join(".giant-proxy");
+        if let Ok(Some(pid)) = giantd::pid::read_pid(&config_dir) {
+            let _ = std::process::Command::new("kill")
+                .arg(pid.to_string())
+                .status();
+        }
+    }
+    app.exit(0);
 }
 
 async fn get_tray_status() -> (String, bool) {

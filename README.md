@@ -118,6 +118,14 @@ System proxy is restored automatically.
 | `giant-proxy rule list PROFILE` | List rules in a profile |
 | `giant-proxy rule add PROFILE --id ID ...` | Add a rule to a profile |
 | `giant-proxy rule toggle PROFILE RULE_ID` | Enable/disable a rule |
+| `giant-proxy traffic watch` | Live tail of proxied traffic (one line per request) |
+| `giant-proxy traffic watch -v` | Live tail with full request/response headers |
+| `giant-proxy traffic list` | List buffered traffic entries |
+| `giant-proxy traffic show ID` | Full detail for a single traffic entry |
+| `giant-proxy traffic on` | Enable traffic capture |
+| `giant-proxy traffic off` | Disable traffic capture |
+| `giant-proxy traffic clear` | Clear the traffic buffer |
+| `giant-proxy traffic status` | Check whether capture is enabled |
 | `giant-proxy daemon install` | Install as a system service (launchd/systemd) |
 | `giant-proxy daemon uninstall` | Remove the system service |
 | `giant-proxy uninstall` | Remove everything: service, CA cert, config directory |
@@ -203,6 +211,26 @@ port = 9000
 scheme = "http"
 ```
 
+## Traffic Inspector
+
+The dashboard includes a live traffic inspector for debugging proxied requests. Open the **Traffic** tab in the dashboard, click **Start Capture**, and every request flowing through the proxy shows up in real time.
+
+The traffic list shows timestamp, HTTP method, URL, response status code, duration, and which rule matched (if any). Redirected requests are highlighted so you can tell at a glance what's being intercepted vs passed through.
+
+Click any row to open a detail pane with the full request and response headers displayed side by side. Filter by URL to narrow down to what you're looking for. Pause capture to freeze the list while you inspect, clear it when you're done.
+
+Traffic capture is opt-in and runs entirely in memory (no disk writes). When capture is off there's no overhead. The buffer holds the most recent 1000 requests and evicts the oldest entries automatically.
+
+The traffic API is also available over the daemon socket for CLI or scripting use:
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /traffic` | List captured traffic entries (summary) |
+| `GET /traffic/{id}` | Full detail for a single entry (request + response headers) |
+| `POST /traffic/toggle` | Toggle capture on/off (body: `{"enabled": true}`) |
+| `POST /traffic/clear` | Clear the traffic buffer |
+| `GET /traffic/status` | Check whether capture is currently enabled |
+
 ## Menubar App
 
 The menubar app (`giant-proxy-ui`) bundles the daemon and CLI alongside a system tray icon with:
@@ -211,7 +239,7 @@ The menubar app (`giant-proxy-ui`) bundles the daemon and CLI alongside a system
 
 2. **Tray menu** -- start/stop proxy, switch profiles, open dashboard. Starts the daemon automatically if needed.
 
-3. **Dashboard window** -- full rule editor with create/edit/delete, profile management with import/export and drag-to-reorder, live traffic log with match/passthrough highlighting, settings panel, and About section.
+3. **Dashboard window** -- full rule editor with create/edit/delete, profile management with import/export and drag-to-reorder, live traffic inspector with header detail view, settings panel, and About section.
 
 Install via Homebrew (includes daemon and CLI):
 

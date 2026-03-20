@@ -1,4 +1,6 @@
 use std::path::PathBuf;
+use tokio::net::UnixStream;
+use tokio_tungstenite::WebSocketStream;
 
 pub struct DaemonClient {
     socket_path: PathBuf,
@@ -55,6 +57,15 @@ impl DaemonClient {
             let config_dir = self.socket_path.parent().unwrap();
             giantd::pid::cleanup_pid(config_dir).ok();
         }
+    }
+
+    pub async fn connect_events(
+        &self,
+    ) -> Result<WebSocketStream<UnixStream>, Box<dyn std::error::Error>> {
+        let stream = UnixStream::connect(&self.socket_path).await?;
+        let url = "ws://localhost/events";
+        let (ws_stream, _) = tokio_tungstenite::client_async(url, stream).await?;
+        Ok(ws_stream)
     }
 
     async fn request(
