@@ -131,29 +131,20 @@ async function loadProfilesTab() {
     const dragHandle = `<span class="drag-handle" data-action="move-profile-up" data-profile="${p.name}" title="Drag to reorder">&#9776;</span>`;
 
     const rulesHtml = rules.length
-      ? `<table class="profile-rules-table">
-          <thead><tr>
-            <th class="col-toggle"></th>
-            <th>Rule</th>
-            <th>Match</th>
-            <th>Target</th>
-            <th class="col-rule-actions"></th>
-          </tr></thead>
-          <tbody>${rules.map(r => `
-            <tr class="${r.enabled ? '' : 'rule-disabled'}">
-              <td class="col-toggle">
-                <input type="checkbox" ${r.enabled ? "checked" : ""} data-action="toggle-rule" data-profile="${p.name}" data-rule="${r.id}">
-              </td>
-              <td>${r.id}</td>
-              <td class="mono" title="${escapeHtml(r.match_display)}">${truncate(r.match_display, 50)}</td>
-              <td class="mono">${r.target}</td>
-              <td class="col-rule-actions">
-                <button class="icon-btn" title="Edit" data-action="edit-rule" data-profile="${p.name}" data-rule="${r.id}">&#9998;</button>
-                <button class="icon-btn danger" title="Delete" data-action="delete-rule" data-profile="${p.name}" data-rule="${r.id}">&#10005;</button>
-              </td>
-            </tr>`).join("")}
-          </tbody>
-        </table>`
+      ? `<div class="rule-list">${rules.map(r => `
+          <div class="rule-row ${r.enabled ? '' : 'rule-disabled'}">
+            <input type="checkbox" class="rule-toggle" ${r.enabled ? "checked" : ""} data-action="toggle-rule" data-profile="${p.name}" data-rule="${r.id}">
+            <div class="rule-info" data-action="edit-rule" data-profile="${p.name}" data-rule="${r.id}">
+              <span class="rule-id">${r.id}</span>
+              <span class="rule-match" title="${escapeHtml(r.match_display)}">${truncate(r.match_display, 50)}</span>
+              <span class="rule-target">${r.target}</span>
+            </div>
+            <div class="rule-actions">
+              <button class="icon-btn" title="Edit" data-action="edit-rule" data-profile="${p.name}" data-rule="${r.id}">&#9998;</button>
+              <button class="icon-btn danger" title="Delete" data-action="delete-rule" data-profile="${p.name}" data-rule="${r.id}">&#128465;</button>
+            </div>
+          </div>`).join("")}
+        </div>`
       : '<div class="profile-no-rules">No rules</div>';
 
     return `
@@ -225,7 +216,7 @@ async function startAndActivate(profileName) {
     await refreshStatus();
     await loadProfilesTab();
   } catch (e) {
-    alert("Failed to start: " + e);
+    showConfirm("Error", "Failed to start: " + e);
   }
 }
 
@@ -235,7 +226,7 @@ async function activateProfile(name) {
     await refreshStatus();
     await loadProfilesTab();
   } catch (e) {
-    alert("Failed to activate: " + e);
+    showConfirm("Error", "Failed to activate: " + e);
   }
 }
 
@@ -245,7 +236,7 @@ async function stopDaemon() {
     await refreshStatus();
     await loadProfilesTab();
   } catch (e) {
-    alert("Failed to stop: " + e);
+    showConfirm("Error", "Failed to stop: " + e);
   }
 }
 
@@ -254,45 +245,46 @@ async function toggleRule(profileName, ruleId) {
     await invoke("toggle_profile_rule", { profileName, ruleId });
     await loadProfilesTab();
   } catch (e) {
-    alert("Toggle failed: " + e);
+    showConfirm("Error", "Toggle failed: " + e);
   }
 }
 
 async function deleteRule(profileName, ruleId) {
-  if (!confirm("Delete rule '" + ruleId + "' from " + profileName + "?")) return;
+  const ok = await showConfirm("Delete Rule", "Delete rule '" + ruleId + "' from " + profileName + "?");
+  if (!ok) return;
   try {
     await invoke("delete_profile_rule", { profileName, ruleId });
     await loadProfilesTab();
   } catch (e) {
-    alert("Delete failed: " + e);
+    await showConfirm("Error", "Delete failed: " + e);
   }
 }
 
 // -- create / rename / reorder --
 
 async function createNewProfile() {
-  const raw = prompt("New profile name:");
+  const raw = await showInput("New Profile", "Profile name (lowercase, hyphens/underscores ok):", "");
   if (!raw) return;
   const name = raw.toLowerCase().replace(/[^a-z0-9_-]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
-  if (!name) { alert("Invalid name"); return; }
+  if (!name) return;
   try {
     await invoke("create_profile", { name });
     await loadProfilesTab();
   } catch (e) {
-    alert("Create profile failed: " + e);
+    await showConfirm("Error", "Create profile failed: " + e);
   }
 }
 
 async function renameProfilePrompt(oldName) {
-  const newName = prompt("Rename profile '" + oldName + "' to:", oldName);
+  const newName = await showInput("Rename Profile", "New name for '" + oldName + "':", oldName);
   if (!newName || newName === oldName) return;
   const slug = newName.toLowerCase().replace(/[^a-z0-9_-]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
-  if (!slug) { alert("Invalid name"); return; }
+  if (!slug) return;
   try {
     await invoke("rename_profile", { oldName, newName: slug });
     await loadProfilesTab();
   } catch (e) {
-    alert("Rename failed: " + e);
+    await showConfirm("Error", "Rename failed: " + e);
   }
 }
 
@@ -310,7 +302,7 @@ async function moveProfile(name, direction) {
     await invoke("reorder_profiles", { names });
     await loadProfilesTab();
   } catch (e) {
-    alert("Reorder failed: " + e);
+    showConfirm("Error", "Reorder failed: " + e);
   }
 }
 
@@ -353,7 +345,7 @@ async function openEditRuleModal(profileName, ruleId) {
     document.getElementById("rule-regex").value = (rule.match_rule && rule.match_rule.regex) || "";
     document.getElementById("rule-modal").style.display = "flex";
   } catch (e) {
-    alert("Failed to load rule: " + e);
+    showConfirm("Error", "Failed to load rule: " + e);
   }
 }
 
@@ -395,7 +387,7 @@ async function saveRule() {
     closeModal();
     await loadProfilesTab();
   } catch (e) {
-    alert("Failed to save rule: " + e);
+    showConfirm("Error", "Failed to save rule: " + e);
   }
 }
 
@@ -429,7 +421,7 @@ async function toggleCapture() {
       document.getElementById("traffic-empty").textContent = "Waiting for traffic...";
     }
   } catch (e) {
-    alert("Toggle capture failed: " + e);
+    showConfirm("Error", "Toggle capture failed: " + e);
   }
 }
 
@@ -572,7 +564,7 @@ async function saveSettings() {
     btn.textContent = "Saved";
     setTimeout(() => { btn.textContent = "Save Settings"; }, 1500);
   } catch (e) {
-    alert("Save failed: " + e);
+    showConfirm("Error", "Save failed: " + e);
   }
 }
 
@@ -621,7 +613,7 @@ async function handleStartStop() {
     await refreshStatus();
     await loadProfilesTab();
   } catch (e) {
-    alert("Failed: " + e);
+    showConfirm("Error", "Failed: " + e);
   }
 }
 
@@ -642,10 +634,10 @@ async function importProxyman() {
     const resp = await invoke("import_proxyman_file", { filePath: result });
     const profiles = resp.profiles || [];
     const names = profiles.map(p => `${p.name} (${p.rules} rules)`).join(", ");
-    alert("Imported: " + names);
+    showConfirm("Imported", names);
     await loadProfilesTab();
   } catch (e) {
-    alert("Import failed: " + e);
+    showConfirm("Error", "Import failed: " + e);
   }
 }
 
@@ -656,7 +648,7 @@ async function importProxymanAuto() {
     const resp = await invoke("import_proxyman_auto");
     const profiles = resp.profiles || [];
     const names = profiles.map(p => `${p.name} (${p.rules} rules)`).join(", ");
-    alert("Imported: " + names);
+    showConfirm("Imported", names);
     // switch to profiles tab to show results
     document.querySelectorAll("#tab-bar .tab").forEach(b => b.classList.remove("active"));
     document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
@@ -664,7 +656,7 @@ async function importProxymanAuto() {
     document.getElementById("tab-profiles").classList.add("active");
     await loadProfilesTab();
   } catch (e) {
-    alert("Import failed: " + e);
+    showConfirm("Error", "Import failed: " + e);
   }
 }
 
@@ -704,6 +696,57 @@ function escapeHtml(s) {
 
 function truncate(s, n) {
   return s.length > n ? s.substring(0, n) + "..." : s;
+}
+
+// modal prompt/confirm replacements for WKWebView
+function showPromptModal(title, message, defaultValue) {
+  return new Promise((resolve) => {
+    const overlay = document.getElementById("prompt-modal");
+    const inputWrap = document.getElementById("prompt-input-wrap");
+    const input = document.getElementById("prompt-input");
+    document.getElementById("prompt-title").textContent = title;
+    document.getElementById("prompt-message").textContent = message || "";
+    document.getElementById("prompt-message").style.display = message ? "" : "none";
+    if (defaultValue !== undefined) {
+      inputWrap.style.display = "";
+      input.value = defaultValue || "";
+    } else {
+      inputWrap.style.display = "none";
+      input.value = "";
+    }
+    overlay.style.display = "flex";
+    if (defaultValue !== undefined) {
+      input.focus();
+      input.select();
+    }
+
+    function cleanup(result) {
+      overlay.style.display = "none";
+      document.getElementById("btn-prompt-ok").removeEventListener("click", onOk);
+      document.getElementById("btn-prompt-cancel").removeEventListener("click", onCancel);
+      document.getElementById("btn-prompt-close").removeEventListener("click", onCancel);
+      input.removeEventListener("keydown", onKey);
+      resolve(result);
+    }
+    function onOk() { cleanup(defaultValue !== undefined ? input.value : true); }
+    function onCancel() { cleanup(null); }
+    function onKey(e) {
+      if (e.key === "Enter") onOk();
+      if (e.key === "Escape") onCancel();
+    }
+    document.getElementById("btn-prompt-ok").addEventListener("click", onOk);
+    document.getElementById("btn-prompt-cancel").addEventListener("click", onCancel);
+    document.getElementById("btn-prompt-close").addEventListener("click", onCancel);
+    input.addEventListener("keydown", onKey);
+  });
+}
+
+function showConfirm(title, message) {
+  return showPromptModal(title, message, undefined).then(v => v === true);
+}
+
+function showInput(title, message, defaultValue) {
+  return showPromptModal(title, message, defaultValue || "");
 }
 
 // -- event listeners --

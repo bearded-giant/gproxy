@@ -151,7 +151,14 @@ impl DaemonClient {
 
         let client = hyper_util::client::legacy::Client::unix();
         let resp = client.request(req).await?;
+        let status = resp.status();
         let body = resp.into_body().collect().await?.to_bytes();
+        if body.is_empty() {
+            if status.is_success() {
+                return Ok(serde_json::json!({"ok": true}));
+            }
+            return Err(format!("daemon returned {} with empty body", status).into());
+        }
         let value: serde_json::Value = serde_json::from_slice(&body)?;
         Ok(value)
     }

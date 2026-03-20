@@ -585,6 +585,87 @@ tbody tr:hover {
   border-top: 1px solid #313244;
 }
 
+.modal-narrow {
+  width: 400px;
+}
+
+.prompt-message {
+  font-size: 13px;
+  color: #a6adc8;
+  margin-bottom: 12px;
+}
+
+.rule-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-bottom: 1px solid rgba(69, 71, 90, 0.4);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.rule-row:hover {
+  background: rgba(69, 71, 90, 0.3);
+}
+
+.rule-row.rule-disabled {
+  opacity: 0.4;
+}
+
+.rule-row .rule-toggle {
+  flex-shrink: 0;
+}
+
+.rule-row .rule-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.rule-row .rule-id {
+  font-weight: 500;
+  white-space: nowrap;
+  min-width: 80px;
+}
+
+.rule-row .rule-match {
+  font-family: "SF Mono", "Fira Code", monospace;
+  font-size: 12px;
+  color: #a6adc8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.rule-row .rule-target {
+  font-family: "SF Mono", "Fira Code", monospace;
+  font-size: 12px;
+  color: #a6adc8;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.rule-row .rule-actions {
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+}
+
+.rule-row:hover .rule-actions {
+  opacity: 1;
+}
+
+.rule-actions .icon-btn {
+  font-size: 12px;
+  padding: 4px 6px;
+}
+
 .table-container::-webkit-scrollbar,
 .profiles-container::-webkit-scrollbar,
 .settings-form::-webkit-scrollbar,
@@ -1089,6 +1170,19 @@ tbody tr:hover {
     background: #40a02b !important;
     color: #eff1f5 !important;
     border-color: #40a02b !important;
+  }
+
+  .rule-row:hover {
+    background: rgba(204, 208, 218, 0.4);
+  }
+
+  .rule-row .rule-match,
+  .rule-row .rule-target {
+    color: #5c5f77;
+  }
+
+  .prompt-message {
+    color: #5c5f77;
   }
 
   .table-container::-webkit-scrollbar-thumb,

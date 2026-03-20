@@ -28,16 +28,15 @@ fn main() {
 
     for bin_name in &["giantd", "giant-proxy"] {
         let dest = binaries_dir.join(format!("{}-{}", bin_name, target_triple));
-        if !dest.exists() {
-            let src = workspace_root.join("target").join(&profile).join(bin_name);
-            if src.exists() {
-                std::fs::copy(&src, &dest)
-                    .unwrap_or_else(|_| panic!("failed to copy {} to binaries/", bin_name));
-                println!("cargo:warning=copied {} to {}", bin_name, dest.display());
-            } else {
-                std::fs::write(&dest, "").ok();
-                println!("cargo:warning={} placeholder created", bin_name);
-            }
+        let src = workspace_root.join("target").join(&profile).join(bin_name);
+        if src.exists() {
+            // always copy to pick up changes from workspace builds
+            std::fs::copy(&src, &dest)
+                .unwrap_or_else(|_| panic!("failed to copy {} to binaries/", bin_name));
+            println!("cargo:warning=copied {} to {}", bin_name, dest.display());
+        } else if !dest.exists() {
+            std::fs::write(&dest, "").ok();
+            println!("cargo:warning={} placeholder created", bin_name);
         }
     }
 
