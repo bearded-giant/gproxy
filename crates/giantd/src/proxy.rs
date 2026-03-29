@@ -72,8 +72,34 @@ impl HttpHandler for ProxyHandler {
         for rule in rules.iter().filter(|r| r.enabled) {
             if rule.matches(req.uri(), req.headers(), &method) {
                 let (mut parts, body) = req.into_parts();
+
+                // capture original host/scheme before rewriting
+                let original_host = parts
+                    .headers
+                    .get(hyper::header::HOST)
+                    .and_then(|h| h.to_str().ok())
+                    .unwrap_or("")
+                    .to_string();
+                let original_scheme = parts
+                    .uri
+                    .scheme_str()
+                    .unwrap_or("https")
+                    .to_string();
+
                 let new_uri = rule.rewrite_uri(&parts.uri);
                 parts.uri = new_uri;
+
+                // set forwarding headers so the upstream app knows the original host
+                if !original_host.is_empty() {
+                    parts.headers.insert(
+                        http::header::HeaderName::from_static("x-forwarded-host"),
+                        original_host.parse().expect("valid header value"),
+                    );
+                }
+                parts.headers.insert(
+                    http::header::HeaderName::from_static("x-forwarded-proto"),
+                    original_scheme.parse().expect("valid header value"),
+                );
 
                 if !rule.preserve_host {
                     parts.headers.insert(

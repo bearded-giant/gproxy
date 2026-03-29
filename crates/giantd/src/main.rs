@@ -165,13 +165,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     tracing::info!("giantd started (pid {})", std::process::id());
 
-    // signal handling -- only shutdown on ctrl_c or api death
+    // signal handling -- shutdown on SIGINT, SIGTERM, or api death
     // proxy_task and pac_task are optional; their exit should not kill the daemon
     let shutdown_config_dir = config::config_dir();
-    tokio::select! {
-        _ = tokio::signal::ctrl_c() => {
+    let shutdown_signal = async {
+        let ctrl_c = tokio::signal::ctrl_c();
+        #[cfg(unix)]
+        {
+            let mut sigterm =
+                tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+                    .expect("failed to register SIGTERM handler");
+            tokio::select! {
+                _ = ctrl_c => tracing::info!("received SIGINT"),
+                _ = sigterm.recv() => tracing::info!("received SIGTERM"),
+            }
+        }
+        #[cfg(not(unix))]
+        {
+            ctrl_c.await.ok();
             tracing::info!("received shutdown signal");
         }
+    };
+    tokio::select! {
+        _ = shutdown_signal => {}
         _ = api_task => {
             tracing::warn!("api task ended unexpectedly");
         }

@@ -543,6 +543,17 @@ fn main() {
                 ns_app.setActivationPolicy(NSApplicationActivationPolicy::Accessory);
             }
 
+            // clear stale proxy settings from a previous crash/unclean exit
+            {
+                let client = DaemonClient::new();
+                if !client.is_daemon_running() {
+                    let port = giantd::config::load_config()
+                        .map(|c| c.listen_port)
+                        .unwrap_or(9456);
+                    let _ = giantd::routing::clear_stale_system_proxy(port);
+                }
+            }
+
             // first-launch setup: config dirs, CA cert, launch-at-login
             {
                 use tauri_plugin_autostart::ManagerExt;
@@ -670,8 +681,17 @@ fn main() {
             clear_traffic,
             get_traffic_status,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|_app, event| {
+            if let tauri::RunEvent::Exit = event {
+                // safety net: clear system proxy if daemon didn't clean up
+                let port = giantd::config::load_config()
+                    .map(|c| c.listen_port)
+                    .unwrap_or(9456);
+                let _ = giantd::routing::clear_stale_system_proxy(port);
+            }
+        });
 }
 
 async fn event_forwarder(app: tauri::AppHandle) {

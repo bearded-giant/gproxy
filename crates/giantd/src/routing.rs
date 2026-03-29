@@ -249,6 +249,61 @@ pub fn clear_pac_proxy(_services: &[String]) -> Result<()> {
     Ok(())
 }
 
+// clear proxy settings left behind by a crash or unclean exit
+#[cfg(target_os = "macos")]
+pub fn clear_stale_system_proxy(port: u16) -> Result<()> {
+    let output = std::process::Command::new("networksetup")
+        .args(["-listallnetworkservices"])
+        .output()?;
+    let services_str = String::from_utf8_lossy(&output.stdout);
+    let port_str = port.to_string();
+
+    for line in services_str.lines().skip(1) {
+        let service = line.trim();
+        if service.starts_with('*') || service.is_empty() {
+            continue;
+        }
+
+        let http = std::process::Command::new("networksetup")
+            .args(["-getwebproxy", service])
+            .output()?;
+        let http_str = String::from_utf8_lossy(&http.stdout);
+        if http_str.contains("Enabled: Yes")
+            && http_str.contains("127.0.0.1")
+            && http_str.contains(&format!("Port: {}", port_str))
+        {
+            let _ = std::process::Command::new("networksetup")
+                .args(["-setwebproxystate", service, "off"])
+                .status();
+        }
+
+        let https = std::process::Command::new("networksetup")
+            .args(["-getsecurewebproxy", service])
+            .output()?;
+        let https_str = String::from_utf8_lossy(&https.stdout);
+        if https_str.contains("Enabled: Yes")
+            && https_str.contains("127.0.0.1")
+            && https_str.contains(&format!("Port: {}", port_str))
+        {
+            let _ = std::process::Command::new("networksetup")
+                .args(["-setsecurewebproxystate", service, "off"])
+                .status();
+        }
+    }
+
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+pub fn clear_stale_system_proxy(_port: u16) -> Result<()> {
+    Ok(())
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+pub fn clear_stale_system_proxy(_port: u16) -> Result<()> {
+    Ok(())
+}
+
 pub fn generate_env_snippet(port: u16, ca_path: &Path, bypass: &[String]) -> String {
     let no_proxy = if bypass.is_empty() {
         "localhost,127.0.0.1".to_string()
