@@ -80,11 +80,7 @@ impl HttpHandler for ProxyHandler {
                     .and_then(|h| h.to_str().ok())
                     .unwrap_or("")
                     .to_string();
-                let original_scheme = parts
-                    .uri
-                    .scheme_str()
-                    .unwrap_or("https")
-                    .to_string();
+                let original_scheme = parts.uri.scheme_str().unwrap_or("https").to_string();
 
                 let new_uri = rule.rewrite_uri(&parts.uri);
                 parts.uri = new_uri;

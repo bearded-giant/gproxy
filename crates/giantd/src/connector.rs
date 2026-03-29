@@ -47,11 +47,7 @@ impl Service<Uri> for RoutingConnector {
             let rerouted = Uri::builder()
                 .scheme("http")
                 .authority(format!("{}:{}", addr.ip(), addr.port()))
-                .path_and_query(
-                    uri.path_and_query()
-                        .map(|pq| pq.as_str())
-                        .unwrap_or("/"),
-                )
+                .path_and_query(uri.path_and_query().map(|pq| pq.as_str()).unwrap_or("/"))
                 .build()
                 .unwrap_or(uri);
             tracing::debug!(original = %authority, target = %addr, "routing override");

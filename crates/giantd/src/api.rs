@@ -125,16 +125,17 @@ async fn switch_profile(
             *state.active_profile.write().await = Some(profile_name.clone());
             *state.started_at.write().await = Some(chrono::Utc::now());
 
-            // ensure system proxy is set
+            // ensure pac proxy is set
             let services = state.proxy_services.read().await.clone();
             if services.is_empty() {
                 let config = state.config.read().await;
-                match crate::routing::set_system_proxy(config.listen_port) {
+                let pac_url = format!("http://127.0.0.1:{}/proxy.pac", config.pac_port);
+                match crate::routing::set_pac_proxy(&pac_url) {
                     Ok(svc) => {
-                        tracing::info!("system proxy set on: {:?}", svc);
+                        tracing::info!("pac proxy set on: {:?}", svc);
                         *state.proxy_services.write().await = svc;
                     }
-                    Err(e) => tracing::warn!("failed to set system proxy: {}", e),
+                    Err(e) => tracing::warn!("failed to set pac proxy: {}", e),
                 }
             }
 
@@ -240,13 +241,14 @@ async fn start_proxy(
 
             let config = state.config.read().await;
 
-            // configure system proxy
-            match crate::routing::set_system_proxy(config.listen_port) {
+            // configure system proxy via PAC so only matched domains are intercepted
+            let pac_url = format!("http://127.0.0.1:{}/proxy.pac", config.pac_port);
+            match crate::routing::set_pac_proxy(&pac_url) {
                 Ok(services) => {
-                    tracing::info!("system proxy set on: {:?}", services);
+                    tracing::info!("pac proxy set on: {:?}", services);
                     *state.proxy_services.write().await = services;
                 }
-                Err(e) => tracing::warn!("failed to set system proxy: {}", e),
+                Err(e) => tracing::warn!("failed to set pac proxy: {}", e),
             }
 
             state.event_bus.send(ProxyEvent::ProxyStarted {
@@ -265,11 +267,11 @@ async fn start_proxy(
 }
 
 async fn stop_proxy(State(state): State<AppState>) -> impl IntoResponse {
-    // clear system proxy before stopping
+    // clear pac proxy before stopping
     let services = state.proxy_services.read().await.clone();
     if !services.is_empty() {
-        if let Err(e) = crate::routing::clear_system_proxy(&services) {
-            tracing::warn!("failed to clear system proxy: {}", e);
+        if let Err(e) = crate::routing::clear_pac_proxy(&services) {
+            tracing::warn!("failed to clear pac proxy: {}", e);
         }
         state.proxy_services.write().await.clear();
     }

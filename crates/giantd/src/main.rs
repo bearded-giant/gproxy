@@ -196,11 +196,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // cleanup
     tracing::info!("shutting down");
 
-    // clear system proxy
+    // clear pac proxy
     let services = proxy_services.read().await;
     if !services.is_empty() {
-        if let Err(e) = giantd::routing::clear_system_proxy(&services) {
-            tracing::warn!("failed to clear system proxy: {}", e);
+        if let Err(e) = giantd::routing::clear_pac_proxy(&services) {
+            tracing::warn!("failed to clear pac proxy: {}", e);
         }
     }
     drop(services);

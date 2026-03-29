@@ -78,8 +78,7 @@ fn roundtrip_profile_with_glob_rules() {
 
 #[test]
 fn roundtrip_regex_with_backslash_dot() {
-    // exact regex from the proxyman import that triggered the bug report
-    let regex = r"^.*\.rechargeapps\.com/merchant(?!/v1).*";
+    let regex = r"^.*\.example\.com/merchant(?!/v1).*";
     let profile = make_profile(vec![make_regex_rule("test", regex)]);
     let parsed = roundtrip(&profile);
     assert_eq!(parsed.rules[0].match_rule.regex.as_deref(), Some(regex));
