@@ -1,6 +1,7 @@
 pub mod api;
 pub mod certs;
 pub mod config;
+pub mod connector;
 pub mod convert;
 pub mod errors;
 pub mod events;

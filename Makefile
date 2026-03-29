@@ -8,6 +8,7 @@ build:
 build-release:
 	cargo build --release --workspace
 	rm -rf target/release/build/giant-proxy-ui-*/out/tauri-codegen-assets/
+	rm -f crates/giant-proxy-ui/src-tauri/binaries/giantd-* crates/giant-proxy-ui/src-tauri/binaries/giant-proxy-*
 	cd crates/giant-proxy-ui && pnpm tauri build
 
 # format + clippy

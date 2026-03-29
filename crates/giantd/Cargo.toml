@@ -20,6 +20,7 @@ tokio = { workspace = true }
 axum = { version = "0.8", features = ["ws"] }
 hyper = { version = "1", features = ["full"] }
 hyper-util = { version = "0.1", features = ["tokio"] }
+hyper-rustls = { version = "0.27", features = ["http1", "tls12", "webpki-roots", "ring"] }
 tower = "0.5"
 serde = { workspace = true }
 serde_json = { workspace = true }
