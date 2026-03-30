@@ -12,7 +12,7 @@ name = "giantd"
 path = "src/lib.rs"
 
 [dependencies]
-hudsucker = { version = "0.24", features = ["rcgen-ca"] }
+hudsucker = { git = "https://github.com/bearded-giant/hudsucker.git", branch = "preserve-host", features = ["rcgen-ca"] }
 rcgen = "0.14"
 rustls = "0.23"
 rustls-pemfile = "2"

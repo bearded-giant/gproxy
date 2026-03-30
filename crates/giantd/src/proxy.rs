@@ -97,7 +97,9 @@ impl HttpHandler for ProxyHandler {
                     original_scheme.parse().expect("valid header value"),
                 );
 
-                if !rule.preserve_host {
+                if rule.preserve_host {
+                    parts.extensions.insert(hudsucker::PreserveHost);
+                } else {
                     parts.headers.insert(
                         hyper::header::HOST,
                         format!("{}:{}", rule.target.host, rule.target.port)
