@@ -21,13 +21,13 @@ That's it. Everything is bundled in the app -- daemon, CLI, and cert setup. The 
 ### Homebrew (macOS)
 
 ```
-brew install --cask bearded-giant/tap/giant-proxy-ui
+brew install --cask bearded-giant/tap/giant-proxy
 ```
 
 This installs everything -- the menubar app, daemon, and CLI. For CLI-only (no GUI):
 
 ```
-brew install bearded-giant/tap/giant-proxy
+brew install bearded-giant/tap/giant-proxy-cli
 ```
 
 ### Curl
@@ -244,7 +244,7 @@ The menubar app (`giant-proxy-ui`) bundles the daemon and CLI alongside a system
 Install via Homebrew (includes daemon and CLI):
 
 ```
-brew install --cask bearded-giant/tap/giant-proxy-ui
+brew install --cask bearded-giant/tap/giant-proxy
 ```
 
 Or build from source:
