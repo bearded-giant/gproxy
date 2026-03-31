@@ -10,6 +10,7 @@ pub struct TrayState {
     pub status_item: tauri::menu::MenuItem<tauri::Wry>,
     pub tray_id: tauri::tray::TrayIconId,
     pub is_active: bool,
+    pub last_popover_hide: Option<std::time::Instant>,
 }
 
 pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
@@ -60,6 +61,7 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         status_item: status_item.clone(),
         tray_id: tray_id.clone(),
         is_active: false,
+        last_popover_hide: None,
     }));
 
     TrayIconBuilder::with_id(tray_id)
@@ -166,8 +168,18 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                     if window.is_visible().unwrap_or(false) {
                         let _ = window.hide();
                     } else {
-                        let _ = window.show();
-                        let _ = window.set_focus();
+                        // skip if the popover was just hidden by blur (avoids hide+show flicker)
+                        let recently_hidden = app
+                            .try_state::<Mutex<TrayState>>()
+                            .and_then(|s| {
+                                let s = s.lock().ok()?;
+                                s.last_popover_hide.map(|t| t.elapsed().as_millis() < 300)
+                            })
+                            .unwrap_or(false);
+                        if !recently_hidden {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
                     }
                 }
             }

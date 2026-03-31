@@ -614,6 +614,21 @@ fn main() {
                 }
             }
 
+            // auto-hide popover when it loses focus
+            if let Some(popover) = app.get_webview_window("popover") {
+                let pw = popover.clone();
+                popover.on_window_event(move |event| {
+                    if let tauri::WindowEvent::Focused(false) = event {
+                        let _ = pw.hide();
+                        if let Some(state) = pw.app_handle().try_state::<std::sync::Mutex<tray::TrayState>>() {
+                            if let Ok(mut s) = state.lock() {
+                                s.last_popover_hide = Some(std::time::Instant::now());
+                            }
+                        }
+                    }
+                });
+            }
+
             // hide dashboard on close instead of destroying, toggle dock icon
             if let Some(dashboard) = app.get_webview_window("dashboard") {
                 let dh = dashboard.clone();
