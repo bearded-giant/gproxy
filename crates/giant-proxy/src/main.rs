@@ -8,7 +8,7 @@ const LAUNCHD_PLIST: &str = include_str!("../../../service/com.giantproxy.daemon
 const SYSTEMD_UNIT: &str = include_str!("../../../service/giantd.service");
 
 #[derive(Parser)]
-#[command(name = "giant-proxy", about = "HTTPS proxy with Map Remote rules")]
+#[command(name = "gproxy", about = "HTTPS proxy with Map Remote rules")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -65,7 +65,7 @@ enum Commands {
     },
     /// initialize config directory and generate CA cert
     Init,
-    /// remove giant-proxy completely
+    /// remove gproxy completely
     Uninstall,
     /// print version
     Version,
@@ -75,7 +75,7 @@ enum Commands {
 
 #[derive(Subcommand)]
 #[command(
-    after_help = "You can also use: giant-proxy profile <NAME> [show|toggle|enable|disable|delete|export] [ARGS]"
+    after_help = "You can also use: gproxy profile <NAME> [show|toggle|enable|disable|delete|export] [ARGS]"
 )]
 enum ProfileAction {
     /// list all profiles
@@ -214,7 +214,7 @@ async fn main() {
         Commands::Doctor { .. } => cmd_doctor(&client),
         Commands::Init => cmd_init(),
         Commands::Uninstall => cmd_uninstall(&client).await,
-        Commands::Version => println!("giant-proxy {}", env!("CARGO_PKG_VERSION")),
+        Commands::Version => println!("gproxy {}", env!("CARGO_PKG_VERSION")),
         Commands::Health => cmd_health(&client).await,
     }
 }
@@ -472,7 +472,7 @@ fn cmd_profile(action: ProfileAction) {
                 .collect();
             if args.is_empty() {
                 eprintln!(
-                    "usage: giant-proxy profile <name> [show|toggle|delete|export|enable|disable]"
+                    "usage: gproxy profile <name> [show|toggle|delete|export|enable|disable]"
                 );
                 std::process::exit(1);
             }
@@ -484,7 +484,7 @@ fn cmd_profile(action: ProfileAction) {
                 }
                 "toggle" => {
                     let rule_id = args.get(2).unwrap_or_else(|| {
-                        eprintln!("usage: giant-proxy profile {} toggle <rule_id>", name);
+                        eprintln!("usage: gproxy profile {} toggle <rule_id>", name);
                         std::process::exit(1);
                     });
                     cmd_rule(RuleAction::Toggle {
@@ -494,14 +494,14 @@ fn cmd_profile(action: ProfileAction) {
                 }
                 "enable" => {
                     let rule_id = args.get(2).unwrap_or_else(|| {
-                        eprintln!("usage: giant-proxy profile {} enable <rule_id>", name);
+                        eprintln!("usage: gproxy profile {} enable <rule_id>", name);
                         std::process::exit(1);
                     });
                     enable_rule(name, rule_id, true);
                 }
                 "disable" => {
                     let rule_id = args.get(2).unwrap_or_else(|| {
-                        eprintln!("usage: giant-proxy profile {} disable <rule_id>", name);
+                        eprintln!("usage: gproxy profile {} disable <rule_id>", name);
                         std::process::exit(1);
                     });
                     enable_rule(name, rule_id, false);
@@ -1083,7 +1083,7 @@ fn cmd_init() {
     }
 
     println!("  config: {}", config_dir.display());
-    println!("ready. run `giant-proxy on` to start");
+    println!("ready. run `gproxy on` to start");
 }
 
 async fn cmd_uninstall(client: &DaemonClient) {
@@ -1169,7 +1169,7 @@ async fn cmd_uninstall(client: &DaemonClient) {
     if config_dir.exists() {
         std::fs::remove_dir_all(&config_dir).expect("failed to remove ~/.giant-proxy");
     }
-    println!("giant-proxy uninstalled");
+    println!("gproxy uninstalled");
 }
 
 fn which_giantd() -> String {
@@ -1274,7 +1274,7 @@ async fn cmd_on(client: &DaemonClient, profile: Option<String>, enabled_rules: V
         None => match giantd::config::list_profiles() {
             Ok(profiles) if !profiles.is_empty() => profiles[0].clone(),
             _ => {
-                eprintln!("no profiles found. create one with: giant-proxy profile create <name>");
+                eprintln!("no profiles found. create one with: gproxy profile create <name>");
                 std::process::exit(1);
             }
         },
@@ -1335,7 +1335,7 @@ async fn cmd_health(client: &DaemonClient) {
         if ca_trusted {
             "yes"
         } else {
-            "no -- run: giant-proxy init"
+            "no -- run: gproxy init"
         }
     );
     println!(
@@ -1371,10 +1371,10 @@ async fn cmd_health(client: &DaemonClient) {
     if !ca_ok || !ca_trusted || !profiles_ok {
         println!();
         if !ca_ok || !ca_trusted {
-            println!("  fix: giant-proxy init");
+            println!("  fix: gproxy init");
         }
         if !profiles_ok {
-            println!("  fix: giant-proxy profile create <name>");
+            println!("  fix: gproxy profile create <name>");
         }
     }
 }

@@ -9,12 +9,12 @@ Giant Proxy sits between your browser and the internet, intercepting HTTPS reque
 1. Download the `.dmg` from the [latest release](https://github.com/bearded-giant/gproxy/releases/latest)
 2. Open the `.dmg` and drag **Giant Proxy** to Applications
 3. Launch Giant Proxy -- on first run it will prompt for your password twice:
-   - once to install CLI commands (`giant-proxy`, `giantd`) to `/usr/local/bin`
+   - once to install CLI commands (`gproxy`, `giantd`) to `/usr/local/bin`
    - once to trust the generated CA certificate in the system keychain
 4. Import your Proxyman rules from the Dashboard (Settings > Import from Proxyman) or create a profile manually
 5. Click **Start Proxy** from the tray menu or select a profile in the Dashboard and click **Start**
 
-That's it. Everything is bundled in the app -- daemon, CLI, and cert setup. The system proxy is configured automatically when active and restored when stopped. The CLI is available in your terminal immediately after install (`giant-proxy status`, `giant-proxy on --profile preprod`, etc).
+That's it. Everything is bundled in the app -- daemon, CLI, and cert setup. The system proxy is configured automatically when active and restored when stopped. The CLI is available in your terminal immediately after install (`gproxy status`, `gproxy on --profile preprod`, etc).
 
 ## Install
 
@@ -42,7 +42,7 @@ curl -sSL https://raw.githubusercontent.com/bearded-giant/gproxy/main/install.sh
 git clone https://github.com/bearded-giant/gproxy.git
 cd gproxy
 cargo build --release
-cp target/release/giantd target/release/giant-proxy ~/.local/bin/
+cp target/release/giantd target/release/gproxy ~/.local/bin/
 ```
 
 ## Quick Start
@@ -50,7 +50,7 @@ cp target/release/giantd target/release/giant-proxy ~/.local/bin/
 1. Initialize the config directory and generate a CA certificate:
 
 ```
-giant-proxy init
+gproxy init
 ```
 
 This creates `~/.giant-proxy/` with a CA cert. You'll be prompted for your password to trust the cert in your system keychain.
@@ -82,7 +82,7 @@ scheme = "http"
 3. Start the proxy with a profile:
 
 ```
-giant-proxy on --profile preprod
+gproxy on --profile preprod
 ```
 
 This starts the daemon, loads the profile, and configures your system proxy automatically. No manual proxy setup or env vars needed.
@@ -92,7 +92,7 @@ This starts the daemon, loads the profile, and configures your system proxy auto
 5. When you're done:
 
 ```
-giant-proxy stop
+gproxy stop
 ```
 
 System proxy is restored automatically.
@@ -101,40 +101,40 @@ System proxy is restored automatically.
 
 | Command | Description |
 |---------|-------------|
-| `giant-proxy init` | Create config directory, generate CA cert, install to trust store |
-| `giant-proxy start` | Start the daemon |
-| `giant-proxy stop` | Stop the daemon and restore system proxy |
-| `giant-proxy on [--profile NAME]` | Start daemon + load profile + set system proxy (picks first profile if none specified) |
-| `giant-proxy off` | Stop matching, clear active profile |
-| `giant-proxy status` | Show proxy status, active profile, loaded rules (enabled count) |
-| `giant-proxy health` | Full diagnostic: CA cert, trust store, daemon, profiles |
-| `giant-proxy env` | Print shell export statements for proxy env vars |
-| `giant-proxy profile list` | List available profiles |
-| `giant-proxy profile show NAME` | Show profile details and rules |
-| `giant-proxy profile NAME` | Shorthand for `profile show NAME` |
-| `giant-proxy profile NAME toggle RULE_ID` | Toggle a rule on/off |
-| `giant-proxy profile NAME enable RULE_ID` | Enable a rule |
-| `giant-proxy profile NAME disable RULE_ID` | Disable a rule |
-| `giant-proxy profile create NAME` | Create an empty profile |
-| `giant-proxy profile import FILE --all` | Import profiles from Proxyman or legacy format |
-| `giant-proxy profile import-proxyman` | Import directly from local Proxyman install |
-| `giant-proxy profile NAME export [--format FMT]` | Export profile (formats: toml, mitmproxy) |
-| `giant-proxy profile NAME delete` | Delete a profile |
-| `giant-proxy rule list PROFILE` | List rules in a profile |
-| `giant-proxy rule add PROFILE --id ID ...` | Add a rule to a profile |
-| `giant-proxy rule toggle PROFILE RULE_ID` | Enable/disable a rule |
-| `giant-proxy traffic watch` | Live tail of proxied traffic (one line per request) |
-| `giant-proxy traffic watch -v` | Live tail with full request/response headers |
-| `giant-proxy traffic list` | List buffered traffic entries |
-| `giant-proxy traffic show ID` | Full detail for a single traffic entry |
-| `giant-proxy traffic on` | Enable traffic capture |
-| `giant-proxy traffic off` | Disable traffic capture |
-| `giant-proxy traffic clear` | Clear the traffic buffer |
-| `giant-proxy traffic status` | Check whether capture is enabled |
-| `giant-proxy daemon install` | Install as a system service (launchd/systemd) |
-| `giant-proxy daemon uninstall` | Remove the system service |
-| `giant-proxy uninstall` | Remove everything: service, CA cert, config directory |
-| `giant-proxy version` | Print version |
+| `gproxy init` | Create config directory, generate CA cert, install to trust store |
+| `gproxy start` | Start the daemon |
+| `gproxy stop` | Stop the daemon and restore system proxy |
+| `gproxy on [--profile NAME]` | Start daemon + load profile + set system proxy (picks first profile if none specified) |
+| `gproxy off` | Stop matching, clear active profile |
+| `gproxy status` | Show proxy status, active profile, loaded rules (enabled count) |
+| `gproxy health` | Full diagnostic: CA cert, trust store, daemon, profiles |
+| `gproxy env` | Print shell export statements for proxy env vars |
+| `gproxy profile list` | List available profiles |
+| `gproxy profile show NAME` | Show profile details and rules |
+| `gproxy profile NAME` | Shorthand for `profile show NAME` |
+| `gproxy profile NAME toggle RULE_ID` | Toggle a rule on/off |
+| `gproxy profile NAME enable RULE_ID` | Enable a rule |
+| `gproxy profile NAME disable RULE_ID` | Disable a rule |
+| `gproxy profile create NAME` | Create an empty profile |
+| `gproxy profile import FILE --all` | Import profiles from Proxyman or legacy format |
+| `gproxy profile import-proxyman` | Import directly from local Proxyman install |
+| `gproxy profile NAME export [--format FMT]` | Export profile (formats: toml, mitmproxy) |
+| `gproxy profile NAME delete` | Delete a profile |
+| `gproxy rule list PROFILE` | List rules in a profile |
+| `gproxy rule add PROFILE --id ID ...` | Add a rule to a profile |
+| `gproxy rule toggle PROFILE RULE_ID` | Enable/disable a rule |
+| `gproxy traffic watch` | Live tail of proxied traffic (one line per request) |
+| `gproxy traffic watch -v` | Live tail with full request/response headers |
+| `gproxy traffic list` | List buffered traffic entries |
+| `gproxy traffic show ID` | Full detail for a single traffic entry |
+| `gproxy traffic on` | Enable traffic capture |
+| `gproxy traffic off` | Disable traffic capture |
+| `gproxy traffic clear` | Clear the traffic buffer |
+| `gproxy traffic status` | Check whether capture is enabled |
+| `gproxy daemon install` | Install as a system service (launchd/systemd) |
+| `gproxy daemon uninstall` | Remove the system service |
+| `gproxy uninstall` | Remove everything: service, CA cert, config directory |
+| `gproxy version` | Print version |
 
 ## Profiles
 
@@ -267,7 +267,7 @@ Giant Proxy is three binaries in a Cargo workspace:
 ```
 crates/
   giantd/           daemon -- MITM proxy engine, control API, cert management
-  giant-proxy/      CLI -- talks to daemon over Unix socket
+  gproxy/           CLI -- talks to daemon over Unix socket
   giant-proxy-ui/   Tauri menubar app -- same Unix socket API
 ```
 
@@ -291,24 +291,24 @@ The CLI and menubar app are both thin clients that talk to the daemon's API. The
 To have the daemon start automatically on login:
 
 ```
-giant-proxy daemon install
+gproxy daemon install
 ```
 
-This installs a launchd agent on macOS or a systemd user unit on Linux. Remove it with `giant-proxy daemon uninstall`.
+This installs a launchd agent on macOS or a systemd user unit on Linux. Remove it with `gproxy daemon uninstall`.
 
 ## Local Install (from source)
 
 ```
 cargo install --path crates/giantd
 cargo install --path crates/giant-proxy
-giant-proxy init
+gproxy init
 ```
 
-This puts `giantd` and `giant-proxy` into `~/.cargo/bin/`. Then start it up:
+This puts `giantd` and `gproxy` into `~/.cargo/bin/`. Then start it up:
 
 ```
-giant-proxy init
-giant-proxy on --profile preprod
+gproxy init
+gproxy on --profile preprod
 ```
 
 To install the menubar app from source:

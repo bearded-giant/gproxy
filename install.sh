@@ -25,13 +25,13 @@ if [ -z "${VERSION:-}" ]; then
   VERSION=$(curl -sSL "https://api.github.com/repos/$REPO/releases/latest" | grep '"tag_name"' | cut -d'"' -f4)
 fi
 
-echo "installing giant-proxy $VERSION for $TARGET"
+echo "installing gproxy $VERSION for $TARGET"
 
-URL="https://github.com/$REPO/releases/download/$VERSION/giant-proxy-$VERSION-$TARGET.tar.gz"
+URL="https://github.com/$REPO/releases/download/$VERSION/gproxy-$VERSION-$TARGET.tar.gz"
 
 mkdir -p "$INSTALL_DIR"
 curl -sSL "$URL" | tar xz -C "$INSTALL_DIR"
-chmod +x "$INSTALL_DIR/giantd" "$INSTALL_DIR/giant-proxy"
+chmod +x "$INSTALL_DIR/giantd" "$INSTALL_DIR/gproxy"
 
 echo "installed to $INSTALL_DIR"
 
@@ -42,4 +42,4 @@ if ! echo "$PATH" | grep -q "$INSTALL_DIR"; then
 fi
 
 echo ""
-echo "run: giant-proxy init"
+echo "run: gproxy init"

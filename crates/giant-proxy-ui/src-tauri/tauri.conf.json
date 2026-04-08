@@ -10,7 +10,7 @@
     "targets": "all",
     "externalBin": [
       "binaries/giantd",
-      "binaries/giant-proxy"
+      "binaries/gproxy"
     ],
     "icon": [
       "icons/32x32.png",

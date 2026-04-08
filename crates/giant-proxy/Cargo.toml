@@ -4,7 +4,7 @@ version = "0.5.2"
 edition = "2021"
 
 [[bin]]
-name = "giant-proxy"
+name = "gproxy"
 path = "src/main.rs"
 
 [dependencies]

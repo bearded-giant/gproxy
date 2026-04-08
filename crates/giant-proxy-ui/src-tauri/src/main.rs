@@ -516,10 +516,10 @@ fn install_ca_trust_gui(ca: &giantd::certs::CertAuthority) {
     {
         Ok(s) if s.success() => tracing::info!("CA cert installed to trust store"),
         Ok(_) => tracing::warn!(
-            "CA trust install cancelled by user (run `giant-proxy init` from terminal to retry)"
+            "CA trust install cancelled by user (run `gproxy init` from terminal to retry)"
         ),
         Err(e) => tracing::warn!(
-            "CA trust install failed: {} (run `giant-proxy init` from terminal to retry)",
+            "CA trust install failed: {} (run `gproxy init` from terminal to retry)",
             e
         ),
     }
@@ -588,7 +588,7 @@ fn main() {
                     // first launch: symlink CLI binaries to /usr/local/bin
                     if let Some(exe_dir) = std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.to_path_buf())) {
                         let mut cmds = Vec::new();
-                        for bin in &["giant-proxy", "giantd"] {
+                        for bin in &["gproxy", "giantd"] {
                             let src = exe_dir.join(bin);
                             let dest = format!("/usr/local/bin/{}", bin);
                             if src.exists() {
@@ -597,7 +597,7 @@ fn main() {
                         }
                         if !cmds.is_empty() {
                             let script = format!(
-                                "do shell script \"{}\" with administrator privileges with prompt \"Giant Proxy wants to install CLI commands (giant-proxy, giantd) to /usr/local/bin\"",
+                                "do shell script \"{}\" with administrator privileges with prompt \"Giant Proxy wants to install CLI commands (gproxy, giantd) to /usr/local/bin\"",
                                 cmds.join(" && ")
                             );
                             match std::process::Command::new("osascript")

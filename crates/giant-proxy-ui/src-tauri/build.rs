@@ -26,7 +26,7 @@ fn main() {
 
     let profile = std::env::var("PROFILE").unwrap_or_else(|_| "release".to_string());
 
-    for bin_name in &["giantd", "giant-proxy"] {
+    for bin_name in &["giantd", "gproxy"] {
         let dest = binaries_dir.join(format!("{}-{}", bin_name, target_triple));
         let src = workspace_root.join("target").join(&profile).join(bin_name);
         if src.exists() {

@@ -15,19 +15,19 @@ cargo install --path crates/giantd && cargo install --path crates/giant-proxy
 Initialize config dir and install the CA cert (will prompt for password):
 
 ```bash
-giant-proxy init
+gproxy init
 ```
 
 Import your Proxyman rules (if you have them):
 
 ```bash
-giant-proxy profile import-proxyman
+gproxy profile import-proxyman
 ```
 
 Start proxying:
 
 ```bash
-giant-proxy on
+gproxy on
 ```
 
 ## Running Tests

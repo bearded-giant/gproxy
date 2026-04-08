@@ -672,7 +672,7 @@ async function checkForUpdate() {
     const resp = await invoke("check_for_update");
     if (resp.update_available) {
       result.className = "update-result update-available";
-      result.innerHTML = `v${resp.latest} available -- <a href="#" id="update-link">view release</a><br><span style="font-size:11px;color:#6c7086">brew upgrade giant-proxy</span>`;
+      result.innerHTML = `v${resp.latest} available -- <a href="#" id="update-link">view release</a><br><span style="font-size:11px;color:#6c7086">brew upgrade gproxy</span>`;
       document.getElementById("update-link").addEventListener("click", (e) => {
         e.preventDefault();
         window.__TAURI__.shell.open(resp.url);
