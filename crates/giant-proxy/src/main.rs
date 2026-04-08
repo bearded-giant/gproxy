@@ -2,6 +2,7 @@ mod client;
 
 use clap::{Parser, Subcommand};
 use client::DaemonClient;
+use std::ffi::OsString;
 
 const LAUNCHD_PLIST: &str = include_str!("../../../service/com.giantproxy.daemon.plist");
 const SYSTEMD_UNIT: &str = include_str!("../../../service/giantd.service");
@@ -37,7 +38,7 @@ enum Commands {
     Off,
     /// print shell env vars for proxy
     Env,
-    /// manage profiles
+    /// manage profiles (or: profile <NAME> [show|toggle|enable|disable|delete|export])
     Profile {
         #[command(subcommand)]
         action: ProfileAction,
@@ -73,6 +74,9 @@ enum Commands {
 }
 
 #[derive(Subcommand)]
+#[command(
+    after_help = "You can also use: giant-proxy profile <NAME> [show|toggle|enable|disable|delete|export] [ARGS]"
+)]
 enum ProfileAction {
     /// list all profiles
     #[command(alias = "ls")]
@@ -104,6 +108,9 @@ enum ProfileAction {
         #[arg(long, default_value = "toml")]
         format: String,
     },
+    /// interact with a named profile: <name> [show|toggle|delete|export] [args...]
+    #[command(external_subcommand)]
+    Named(Vec<OsString>),
 }
 
 #[derive(Subcommand)]
@@ -458,6 +465,63 @@ fn cmd_profile(action: ProfileAction) {
                 std::process::exit(1);
             }
         },
+        ProfileAction::Named(args) => {
+            let args: Vec<String> = args
+                .into_iter()
+                .map(|a| a.to_string_lossy().into_owned())
+                .collect();
+            if args.is_empty() {
+                eprintln!(
+                    "usage: giant-proxy profile <name> [show|toggle|delete|export|enable|disable]"
+                );
+                std::process::exit(1);
+            }
+            let name = &args[0];
+            let action = args.get(1).map(|s| s.as_str()).unwrap_or("show");
+            match action {
+                "show" => {
+                    cmd_profile(ProfileAction::Show { name: name.clone() });
+                }
+                "toggle" => {
+                    let rule_id = args.get(2).unwrap_or_else(|| {
+                        eprintln!("usage: giant-proxy profile {} toggle <rule_id>", name);
+                        std::process::exit(1);
+                    });
+                    cmd_rule(RuleAction::Toggle {
+                        profile: name.clone(),
+                        rule_id: rule_id.clone(),
+                    });
+                }
+                "enable" => {
+                    let rule_id = args.get(2).unwrap_or_else(|| {
+                        eprintln!("usage: giant-proxy profile {} enable <rule_id>", name);
+                        std::process::exit(1);
+                    });
+                    enable_rule(name, rule_id, true);
+                }
+                "disable" => {
+                    let rule_id = args.get(2).unwrap_or_else(|| {
+                        eprintln!("usage: giant-proxy profile {} disable <rule_id>", name);
+                        std::process::exit(1);
+                    });
+                    enable_rule(name, rule_id, false);
+                }
+                "delete" => {
+                    cmd_profile(ProfileAction::Delete { name: name.clone() });
+                }
+                "export" => {
+                    let format = args.get(2).cloned().unwrap_or_else(|| "toml".to_string());
+                    cmd_profile(ProfileAction::Export {
+                        name: name.clone(),
+                        format,
+                    });
+                }
+                _ => {
+                    eprintln!("unknown action '{}'. expected: show, toggle, enable, disable, delete, export", action);
+                    std::process::exit(1);
+                }
+            }
+        }
     }
 }
 
@@ -625,6 +689,33 @@ fn cmd_rule(action: RuleAction) {
                     std::process::exit(1);
                 }
             }
+        }
+    }
+}
+
+fn enable_rule(profile: &str, rule_id: &str, enabled: bool) {
+    let mut profile_raw = match load_profile_raw(profile) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("error: {}", e);
+            std::process::exit(1);
+        }
+    };
+    match profile_raw.rules.iter_mut().find(|r| r.id == rule_id) {
+        Some(r) => {
+            r.enabled = enabled;
+            let state = if enabled { "enabled" } else { "disabled" };
+            match giantd::config::write_profile(&profile_raw) {
+                Ok(()) => println!("{} rule '{}' in profile '{}'", state, rule_id, profile),
+                Err(e) => {
+                    eprintln!("error: {}", e);
+                    std::process::exit(1);
+                }
+            }
+        }
+        None => {
+            eprintln!("rule '{}' not found in profile '{}'", rule_id, profile);
+            std::process::exit(1);
         }
     }
 }

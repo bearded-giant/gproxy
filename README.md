@@ -111,10 +111,15 @@ System proxy is restored automatically.
 | `giant-proxy env` | Print shell export statements for proxy env vars |
 | `giant-proxy profile list` | List available profiles |
 | `giant-proxy profile show NAME` | Show profile details and rules |
+| `giant-proxy profile NAME` | Shorthand for `profile show NAME` |
+| `giant-proxy profile NAME toggle RULE_ID` | Toggle a rule on/off |
+| `giant-proxy profile NAME enable RULE_ID` | Enable a rule |
+| `giant-proxy profile NAME disable RULE_ID` | Disable a rule |
 | `giant-proxy profile create NAME` | Create an empty profile |
 | `giant-proxy profile import FILE --all` | Import profiles from Proxyman or legacy format |
 | `giant-proxy profile import-proxyman` | Import directly from local Proxyman install |
-| `giant-proxy profile export NAME [--format FMT]` | Export profile (formats: toml, mitmproxy) |
+| `giant-proxy profile NAME export [--format FMT]` | Export profile (formats: toml, mitmproxy) |
+| `giant-proxy profile NAME delete` | Delete a profile |
 | `giant-proxy rule list PROFILE` | List rules in a profile |
 | `giant-proxy rule add PROFILE --id ID ...` | Add a rule to a profile |
 | `giant-proxy rule toggle PROFILE RULE_ID` | Enable/disable a rule |
