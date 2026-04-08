@@ -1,6 +1,6 @@
 {
   "productName": "Giant Proxy",
-  "version": "0.5.2",
+  "version": "0.6.0",
   "identifier": "com.giantproxy.ui",
   "build": {
     "frontendDist": "../src"
