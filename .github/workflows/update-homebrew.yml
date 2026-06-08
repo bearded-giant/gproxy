@@ -1,0 +1,123 @@
+name: Update Homebrew Tap
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g. v0.6.1)'
+        required: true
+
+jobs:
+  update-tap:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+
+    steps:
+    - name: Get release version
+      id: version
+      run: echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+    - name: Download CLI tarball and compute checksum
+      id: cli
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        VERSION: ${{ steps.version.outputs.version }}
+      run: |
+        ASSET="gproxy-v${VERSION}-aarch64-apple-darwin.tar.gz"
+        gh release download "$TAG" \
+          --repo bearded-giant/gproxy \
+          --pattern "$ASSET" \
+          --dir .
+        sha=$(sha256sum "$ASSET" | cut -d' ' -f1)
+        echo "sha_arm_macos=${sha}" >> "$GITHUB_OUTPUT"
+
+    - name: Download DMG and compute checksum
+      id: dmg
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        VERSION: ${{ steps.version.outputs.version }}
+      run: |
+        ASSET="Giant.Proxy_${VERSION}_aarch64.dmg"
+        gh release download "$TAG" \
+          --repo bearded-giant/gproxy \
+          --pattern "$ASSET" \
+          --dir .
+        sha=$(sha256sum "$ASSET" | cut -d' ' -f1)
+        echo "sha_dmg=${sha}" >> "$GITHUB_OUTPUT"
+
+    - name: Checkout tap repo
+      uses: actions/checkout@v5
+      with:
+        repository: bearded-giant/homebrew-tap
+        token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+
+    - name: Update formula (CLI)
+      env:
+        VERSION: ${{ steps.version.outputs.version }}
+        SHA_ARM_MACOS: ${{ steps.cli.outputs.sha_arm_macos }}
+      run: |
+        mkdir -p Formula
+        cat > Formula/giant-proxy-cli.rb << EOF
+        class GiantProxyCli < Formula
+          desc "Giant Proxy CLI + daemon (headless, no GUI)"
+          homepage "https://github.com/bearded-giant/gproxy"
+          version "$VERSION"
+          license "MIT"
+
+          on_macos do
+            on_arm do
+              url "https://github.com/bearded-giant/gproxy/releases/download/v#{version}/gproxy-v#{version}-aarch64-apple-darwin.tar.gz"
+              sha256 "$SHA_ARM_MACOS"
+            end
+          end
+
+          def install
+            bin.install "giantd"
+            bin.install "gproxy"
+          end
+
+          def post_install
+            ohai "Run \`gproxy init\` to set up CA certificate"
+          end
+
+          test do
+            assert_match "gproxy", shell_output("#{bin}/gproxy version")
+          end
+        end
+        EOF
+
+    - name: Update cask (GUI)
+      env:
+        VERSION: ${{ steps.version.outputs.version }}
+        SHA_DMG: ${{ steps.dmg.outputs.sha_dmg }}
+      run: |
+        mkdir -p Casks
+        cat > Casks/giant-proxy.rb << EOF
+        cask "giant-proxy" do
+          version "$VERSION"
+          sha256 "$SHA_DMG"
+
+          on_arm do
+            url "https://github.com/bearded-giant/gproxy/releases/download/v#{version}/Giant.Proxy_#{version}_aarch64.dmg"
+          end
+
+          name "Giant Proxy"
+          desc "HTTPS proxy with Map Remote rules"
+          homepage "https://github.com/bearded-giant/gproxy"
+
+          app "Giant Proxy.app"
+        end
+        EOF
+
+    - name: Commit and push
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add Formula/giant-proxy-cli.rb Casks/giant-proxy.rb
+        git diff --staged --quiet && exit 0
+        git commit -m "giant-proxy ${{ steps.version.outputs.version }}"
+        git pull --rebase
+        git push
